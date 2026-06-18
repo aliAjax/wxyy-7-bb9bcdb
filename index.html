@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>极地科考站值班</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">Polar Station Shift</p>
+        <h1>极地科考站值班</h1>
+      </div>
+      <button id="startBtn" type="button">开始7天值班</button>
+    </header>
+
+    <section class="dashboard">
+      <section class="station">
+        <div class="sky">
+          <span id="weatherIcon">晴</span>
+        </div>
+        <div class="modules">
+          <div class="module heat">供暖</div>
+          <div class="module comm">通信</div>
+          <div class="module lab">实验</div>
+          <div class="module food">食物</div>
+        </div>
+      </section>
+
+      <aside class="panel">
+        <h2>状态</h2>
+        <div class="stat-grid">
+          <span>天数<strong id="day">1/7</strong></span>
+          <span>天气<strong id="weather">晴朗</strong></span>
+          <span>柴油<strong id="fuel">80</strong></span>
+          <span>士气<strong id="morale">75</strong></span>
+          <span>食物<strong id="food">70</strong></span>
+          <span>数据<strong id="data">0</strong></span>
+        </div>
+      </aside>
+    </section>
+
+    <section class="controls-panel">
+      <div class="section-title">
+        <h2>今日电力分配</h2>
+        <span>可用电力 <strong id="powerLeft">12</strong></span>
+      </div>
+      <div id="allocations" class="allocations"></div>
+      <button id="endDayBtn" class="primary" type="button">结束今天</button>
+    </section>
+
+    <section class="lower">
+      <section class="panel">
+        <h2>预报与提示</h2>
+        <p id="forecast" class="forecast">等待开始值班。</p>
+      </section>
+      <section class="panel">
+        <h2>日志</h2>
+        <div id="log" class="log"></div>
+      </section>
+    </section>
+
+    <section id="result" class="result hidden"></section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
