@@ -14,6 +14,7 @@ const dataEl = document.getElementById("data");
 const powerLeftEl = document.getElementById("powerLeft");
 const missionCardsEl = document.getElementById("missionCards");
 const missionDeskEl = document.getElementById("missionDesk");
+const controlsPanelEl = document.getElementById("controlsPanel");
 
 const systems = [
   { id: "heat", name: "供暖", hint: "低于3会冻伤士气" },
@@ -197,6 +198,7 @@ function start() {
   };
   resultEl.classList.add("hidden");
   missionDeskEl.classList.add("hidden");
+  controlsPanelEl.classList.remove("hidden");
   render();
 }
 
@@ -317,10 +319,12 @@ function finish(success) {
     <button id="returnBtn" type="button">返回任务选择台</button>
   `;
   resultEl.classList.remove("hidden");
+  controlsPanelEl.classList.add("hidden");
   document.getElementById("returnBtn").addEventListener("click", () => {
     state = freshState();
     resultEl.classList.add("hidden");
     missionDeskEl.classList.remove("hidden");
+    controlsPanelEl.classList.add("hidden");
     renderMissionCards();
     startBtn.disabled = true;
     render();
