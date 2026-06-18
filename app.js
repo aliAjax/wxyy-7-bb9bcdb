@@ -15,6 +15,12 @@ const powerLeftEl = document.getElementById("powerLeft");
 const missionCardsEl = document.getElementById("missionCards");
 const missionDeskEl = document.getElementById("missionDesk");
 const controlsPanelEl = document.getElementById("controlsPanel");
+const clearArchiveBtn = document.getElementById("clearArchiveBtn");
+const archiveEmptyEl = document.getElementById("archiveEmpty");
+const archiveListEl = document.getElementById("archiveList");
+
+const ARCHIVE_KEY = "polar_station_archive";
+const ARCHIVE_LIMIT = 20;
 
 const systems = [
   { id: "heat", name: "供暖", hint: "低于3会冻伤士气" },
@@ -135,8 +141,10 @@ function init() {
   state = freshState();
   startBtn.addEventListener("click", start);
   endDayBtn.addEventListener("click", endDay);
+  clearArchiveBtn.addEventListener("click", clearArchive);
   renderMissionCards();
   renderAllocations();
+  renderArchive();
   render();
 }
 
@@ -305,6 +313,17 @@ function finish(success) {
   const resultText = success
     ? state.mission.successText(summary)
     : state.mission.failText(summary);
+  saveArchiveRecord({
+    success: success,
+    missionName: state.mission.name,
+    day: state.day,
+    fuel: state.fuel,
+    food: state.food,
+    morale: state.morale,
+    data: state.data,
+    score: score,
+    ending: resultText
+  });
   const goalLine = state.mission.dataGoal
     ? `<p class="result-goal">任务目标：数据 ≥ ${state.mission.dataGoal}，实际：${state.data}，${
         state.data >= state.mission.dataGoal ? "✅ 达成" : "❌ 未达成"
@@ -330,6 +349,7 @@ function finish(success) {
     render();
   });
   addLog(success ? "任务周期结束，结果如上。" : "某项关键资源归零，任务提前中止。");
+  renderArchive();
   render();
 }
 
@@ -418,6 +438,82 @@ function renderLog() {
     const p = document.createElement("p");
     p.textContent = entry;
     logEl.appendChild(p);
+  });
+}
+
+function loadArchive() {
+  try {
+    const raw = localStorage.getItem(ARCHIVE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveArchive(records) {
+  try {
+    localStorage.setItem(ARCHIVE_KEY, JSON.stringify(records));
+  } catch (e) {
+  }
+}
+
+function saveArchiveRecord(record) {
+  const records = loadArchive();
+  records.unshift({
+    ...record,
+    timestamp: Date.now()
+  });
+  if (records.length > ARCHIVE_LIMIT) {
+    records.length = ARCHIVE_LIMIT;
+  }
+  saveArchive(records);
+}
+
+function clearArchive() {
+  if (!confirm("确定要清空所有值班档案吗？此操作不可撤销。")) return;
+  saveArchive([]);
+  renderArchive();
+}
+
+function formatDate(timestamp) {
+  const d = new Date(timestamp);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function renderArchive() {
+  const records = loadArchive();
+  if (records.length === 0) {
+    archiveEmptyEl.classList.remove("hidden");
+    archiveListEl.innerHTML = "";
+    return;
+  }
+  archiveEmptyEl.classList.add("hidden");
+  archiveListEl.innerHTML = "";
+  records.forEach((record) => {
+    const card = document.createElement("div");
+    card.className = "archive-card";
+    card.innerHTML = `
+      <div class="archive-card-head">
+        <span class="archive-card-mission">${record.missionName}</span>
+        <span class="archive-card-tag ${record.success ? "success" : "fail"}">${record.success ? "通关" : "失败"}</span>
+      </div>
+      <div class="archive-card-date">${formatDate(record.timestamp)} · 第 ${record.day} 天</div>
+      <div class="archive-card-stats">
+        <span>柴油<strong>${record.fuel}</strong></span>
+        <span>食物<strong>${record.food}</strong></span>
+        <span>士气<strong>${record.morale}</strong></span>
+      </div>
+      <div class="archive-card-stats">
+        <span>数据<strong>${record.data}</strong></span>
+        <span style="grid-column: span 2;">评分<strong>${record.score}</strong></span>
+      </div>
+      <div class="archive-card-score">综合评分：${record.score}</div>
+      <p class="archive-card-ending">${record.ending}</p>
+    `;
+    archiveListEl.appendChild(card);
   });
 }
 
