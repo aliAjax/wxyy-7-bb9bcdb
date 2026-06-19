@@ -24,6 +24,22 @@ const controlsPanelEl = document.getElementById("controlsPanel");
 const clearArchiveBtn = document.getElementById("clearArchiveBtn");
 const archiveEmptyEl = document.getElementById("archiveEmpty");
 const archiveListEl = document.getElementById("archiveList");
+const archiveDetailOverlay = document.getElementById("archiveDetailOverlay");
+const archiveDetailMission = document.getElementById("archiveDetailMission");
+const archiveDetailTag = document.getElementById("archiveDetailTag");
+const archiveDetailDate = document.getElementById("archiveDetailDate");
+const archiveDetailFuel = document.getElementById("archiveDetailFuel");
+const archiveDetailFood = document.getElementById("archiveDetailFood");
+const archiveDetailMorale = document.getElementById("archiveDetailMorale");
+const archiveDetailData = document.getElementById("archiveDetailData");
+const archiveDetailSampleValue = document.getElementById("archiveDetailSampleValue");
+const archiveDetailSampleIntegrity = document.getElementById("archiveDetailSampleIntegrity");
+const archiveDetailComm = document.getElementById("archiveDetailComm");
+const archiveDetailScore = document.getElementById("archiveDetailScore");
+const archiveDetailEnding = document.getElementById("archiveDetailEnding");
+const archiveDetailCloseBtn = document.getElementById("archiveDetailCloseBtn");
+const archiveDetailOkBtn = document.getElementById("archiveDetailOkBtn");
+const archiveDetailMask = document.querySelector(".archive-detail-mask");
 const crewPanelEl = document.getElementById("crewPanel");
 const crewCardsEl = document.getElementById("crewCards");
 const crewHeatEl = document.getElementById("crewHeat");
@@ -1088,6 +1104,14 @@ function init() {
   startBtn.addEventListener("click", start);
   endDayBtn.addEventListener("click", endDay);
   clearArchiveBtn.addEventListener("click", clearArchive);
+  archiveDetailCloseBtn.addEventListener("click", closeArchiveDetail);
+  archiveDetailOkBtn.addEventListener("click", closeArchiveDetail);
+  archiveDetailMask.addEventListener("click", closeArchiveDetail);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !archiveDetailOverlay.classList.contains("hidden")) {
+      closeArchiveDetail();
+    }
+  });
   initTutorialEvents();
   initEditorEvents();
   initFilterEvents();
@@ -2292,6 +2316,7 @@ function finishCampaignChapter(success) {
     data: state.data,
     sampleValue: sampleStats.totalValue,
     sampleIntegrity: sampleStats.avgIntegrity,
+    commComplete: state.commChain.isComplete,
     score: Math.max(0, state.data + state.fuel + state.food + state.morale),
     ending: success ? "章节通过" : "章节失败"
   });
@@ -2446,6 +2471,7 @@ function showCampaignEnding(lastChapterSuccess, allObjectivesMet) {
     data: lastOutcome.data,
     sampleValue: lastOutcome.sampleValue,
     sampleIntegrity: lastOutcome.sampleIntegrity,
+    commComplete: commComplete,
     score: totalScore,
     ending: `${ending.rank}级·${ending.name}`
   });
@@ -2539,6 +2565,7 @@ function finish(success) {
     data: state.data,
     sampleValue: sampleValue,
     sampleIntegrity: sampleIntegrity,
+    commComplete: state.commChain.isComplete,
     score: score,
     ending: resultText
   });
@@ -3160,6 +3187,31 @@ function formatDate(timestamp) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+function showArchiveDetail(record) {
+  archiveDetailMission.textContent = record.missionName;
+  archiveDetailTag.textContent = record.success ? "通关" : "失败";
+  archiveDetailTag.className = `archive-card-tag ${record.success ? "success" : "fail"}`;
+  archiveDetailDate.textContent = `${formatDate(record.timestamp)} · 第 ${record.day} 天`;
+  archiveDetailFuel.textContent = record.fuel;
+  archiveDetailFood.textContent = record.food;
+  archiveDetailMorale.textContent = record.morale;
+  archiveDetailData.textContent = record.data;
+  archiveDetailSampleValue.textContent = record.sampleValue || 0;
+  archiveDetailSampleIntegrity.textContent = record.sampleIntegrity !== undefined ? record.sampleIntegrity + '%' : '—';
+  if (record.commComplete !== undefined) {
+    archiveDetailComm.textContent = record.commComplete ? "✅完成" : "❌未完成";
+  } else {
+    archiveDetailComm.textContent = "—";
+  }
+  archiveDetailScore.textContent = `综合评分：${record.score}`;
+  archiveDetailEnding.textContent = record.ending;
+  archiveDetailOverlay.classList.remove("hidden");
+}
+
+function closeArchiveDetail() {
+  archiveDetailOverlay.classList.add("hidden");
+}
+
 function renderArchive() {
   const records = loadArchive();
   if (records.length === 0) {
@@ -3191,6 +3243,7 @@ function renderArchive() {
       <div class="archive-card-score">综合评分：${record.score}</div>
       <p class="archive-card-ending">${record.ending}</p>
     `;
+    card.addEventListener("click", () => showArchiveDetail(record));
     archiveListEl.appendChild(card);
   });
 }

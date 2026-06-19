@@ -451,6 +451,43 @@
     </div>
   </div>
 
+  <div id="archiveDetailOverlay" class="archive-detail-overlay hidden">
+    <div class="archive-detail-mask"></div>
+    <div class="archive-detail-card">
+      <div class="archive-detail-header">
+        <div>
+          <h2 id="archiveDetailMission">任务名称</h2>
+          <span id="archiveDetailTag" class="archive-card-tag">通关</span>
+        </div>
+        <button id="archiveDetailCloseBtn" type="button" class="archive-detail-close">×</button>
+      </div>
+      <div class="archive-detail-date" id="archiveDetailDate">2024-01-01 12:00 · 第 1 天</div>
+      <div class="archive-detail-section">
+        <h3>最终资源</h3>
+        <div class="archive-detail-stats">
+          <div class="archive-detail-stat"><span>柴油</span><strong id="archiveDetailFuel">0</strong></div>
+          <div class="archive-detail-stat"><span>食物</span><strong id="archiveDetailFood">0</strong></div>
+          <div class="archive-detail-stat"><span>士气</span><strong id="archiveDetailMorale">0</strong></div>
+          <div class="archive-detail-stat"><span>科研数据</span><strong id="archiveDetailData">0</strong></div>
+        </div>
+      </div>
+      <div class="archive-detail-section">
+        <h3>科研成果</h3>
+        <div class="archive-detail-stats">
+          <div class="archive-detail-stat"><span>样本价值</span><strong id="archiveDetailSampleValue">0</strong></div>
+          <div class="archive-detail-stat"><span>样本完整度</span><strong id="archiveDetailSampleIntegrity">—</strong></div>
+          <div class="archive-detail-stat"><span>通信链路</span><strong id="archiveDetailComm">—</strong></div>
+        </div>
+      </div>
+      <div class="archive-detail-score" id="archiveDetailScore">综合评分：0</div>
+      <div class="archive-detail-section">
+        <h3>主要结局</h3>
+        <p class="archive-detail-ending" id="archiveDetailEnding">结局文案</p>
+      </div>
+      <button id="archiveDetailOkBtn" type="button" class="primary archive-detail-ok">关闭</button>
+    </div>
+  </div>
+
   <script src="app.js"></script>
 </body>
 </html>
