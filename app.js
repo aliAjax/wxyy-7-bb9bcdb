@@ -1228,7 +1228,7 @@ function finish(success) {
   const sampleIntegrity = sampleStats.avgIntegrity;
   const score = Math.max(
     0,
-    state.data + state.fuel + state.food + state.morale + sampleValue
+    state.data + state.fuel + state.food + state.morale
   );
   const summary = { score, data: state.data, mission: state.mission, sampleValue, sampleIntegrity };
   const resultText = success
@@ -1260,7 +1260,7 @@ function finish(success) {
       }</p>`
     : "";
   const sampleScoreLine = sampleValue > 0 || sampleBreakdown
-    ? `<p class="result-goal" style="background:rgba(143,169,174,0.25)">科研样本贡献分：+${sampleValue}（加权完整度${sampleIntegrity}%）</p>`
+    ? `<p class="result-goal" style="background:rgba(143,169,174,0.25)">科研样本当前价值：${sampleValue}（加权完整度${sampleIntegrity}%）</p>`
     : "";
   const sampleDetailLine = sampleBreakdown
     ? `<p style="font-size:13px;line-height:1.7;color:#c5d7da;margin-top:8px">${sampleBreakdown}</p>`
