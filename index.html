@@ -87,6 +87,40 @@
       <div id="sampleCards" class="sample-cards"></div>
     </section>
 
+    <section id="commPanel" class="comm-panel hidden">
+      <div class="section-title">
+        <h2>📡 远程通信任务链</h2>
+        <div class="comm-overview">
+          <span id="commChainStatus" class="comm-status">未开始</span>
+        </div>
+      </div>
+      <div class="comm-head-info">
+        <h3 id="commChainTitle" class="comm-chain-title">极地补给中继任务链</h3>
+        <p class="comm-chain-desc">基地委派的阶段性通信任务，通信系统达标后可推进进度。暴风雪或通信不足会中断进度但不清零，完成阶段解锁资源奖励与特殊日志。</p>
+      </div>
+      <div class="comm-progress-wrap">
+        <div class="comm-progress-info">
+          <span>当前阶段进度</span>
+          <strong id="commChainProgress">0 / 0 天</strong>
+        </div>
+        <div class="comm-progress-bar-wrap">
+          <div id="commChainProgressBar" class="comm-progress-bar">
+            <div class="comm-progress-fill"></div>
+          </div>
+          <span id="commChainDelay" class="comm-delay hidden"></span>
+        </div>
+      </div>
+      <div id="commPhases" class="comm-phases"></div>
+      <div id="commRewards" class="comm-rewards hidden">
+        <div class="comm-rewards-title">🎁 已累计获得奖励</div>
+        <div class="comm-rewards-list"></div>
+      </div>
+      <div id="commLogs" class="comm-logs hidden">
+        <div class="comm-logs-title">📜 通信特殊日志</div>
+        <div class="comm-logs-list"></div>
+      </div>
+    </section>
+
     <section id="controlsPanel" class="controls-panel hidden">
       <div class="section-title">
         <h2>今日电力分配</h2>

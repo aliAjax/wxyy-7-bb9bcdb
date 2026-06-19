@@ -34,6 +34,15 @@ const sampleCardsEl = document.getElementById("sampleCards");
 const sampleIntegrityEl = document.getElementById("sampleIntegrity");
 const sampleTotalValueEl = document.getElementById("sampleTotalValue");
 
+const commPanelEl = document.getElementById("commPanel");
+const commChainTitleEl = document.getElementById("commChainTitle");
+const commChainStatusEl = document.getElementById("commChainStatus");
+const commChainProgressEl = document.getElementById("commChainProgress");
+const commChainDelayEl = document.getElementById("commChainDelay");
+const commPhasesEl = document.getElementById("commPhases");
+const commRewardsEl = document.getElementById("commRewards");
+const commLogsEl = document.getElementById("commLogs");
+
 const emergencyOverlay = document.getElementById("emergencyOverlay");
 const emergencyIcon = document.getElementById("emergencyIcon");
 const emergencyName = document.getElementById("emergencyName");
@@ -370,6 +379,65 @@ const emergencyEvents = [
 
 const EMERGENCY_CHANCE = 0.4;
 
+const commChains = [
+  {
+    id: "supply_relay",
+    name: "极地补给中继任务链",
+    description: "基地要求建立完整通信链路，以便空投补给的精确定位与协调。",
+    icon: "📡",
+    phases: [
+      {
+        id: "handshake",
+        name: "握手同步",
+        desc: "与基地卫星建立加密握手，校验时钟与频段。",
+        requiredDays: 1,
+        commMin: 2,
+        reward: { morale: 3, data: 4 },
+        log: "【通信】加密握手成功，与基地卫星建立稳定链路。时钟偏差已校准至毫秒级。"
+      },
+      {
+        id: "coords",
+        name: "坐标回传",
+        desc: "连续两小时以高功率发送 GPS 校准坐标，供空投系统锁定。",
+        requiredDays: 2,
+        commMin: 3,
+        reward: { data: 10 },
+        log: "【通信】坐标校准完毕。基地回复：已锁定站点位置，误差半径 < 12 米。"
+      },
+      {
+        id: "sample_summary",
+        name: "样本摘要传输",
+        desc: "将样本元数据（类型、数量、完整度快照）打包回传供基地预分析。",
+        requiredDays: 2,
+        commMin: 3,
+        reward: { data: 18, morale: 4 },
+        log: "【通信】样本摘要成功接收！基地科研组兴奋回复：冰芯年代数据远超预期，建议加强冷藏。"
+      },
+      {
+        id: "supply_window",
+        name: "申请补给窗口",
+        desc: "发送物资需求清单并与调度中心确认补给空投的气象窗口。",
+        requiredDays: 2,
+        commMin: 4,
+        reward: { fuel: 15, food: 12, morale: 8 },
+        log: "【通信】补给窗口确认！基地调度：直升机将于换班日附带应急物资，预计燃油+15、食物+12。"
+      },
+      {
+        id: "final_ack",
+        name: "全链路确认",
+        desc: "完成所有指令的最终确认并回传签收报文，任务链收尾。",
+        requiredDays: 1,
+        commMin: 3,
+        reward: { data: 25, fuel: 5, morale: 5 },
+        log: "【通信】全链路签收完成！基地授予「极区通信保障先锋」集体嘉奖，数据+25。"
+      }
+    ]
+  }
+];
+
+const COMM_INTERRUPT_PENALTY = 0.35;
+const COMM_DELAY_MAX = 3;
+
 let state;
 let tutorialActive = false;
 let tutorialCurrentStep = 0;
@@ -616,6 +684,20 @@ function createInitialSamples() {
   return samples;
 }
 
+function createInitialCommChain() {
+  const chain = commChains[0];
+  return {
+    chainId: chain.id,
+    currentPhaseIndex: 0,
+    phaseProgress: 0,
+    delayDays: 0,
+    completedPhases: [],
+    totalRewards: { fuel: 0, food: 0, morale: 0, data: 0 },
+    isComplete: false,
+    specialLogs: []
+  };
+}
+
 function freshState() {
   const mission = missions.find((m) => m.id === "standard");
   return {
@@ -634,6 +716,7 @@ function freshState() {
     equipment: createInitialEquipment(),
     samples: createInitialSamples(),
     sampleValueLostToday: {},
+    commChain: createInitialCommChain(),
     log: ["站内安静得只剩风声，等待选择任务。"]
   };
 }
@@ -709,6 +792,7 @@ function start() {
     equipment: createInitialEquipment(),
     samples: createInitialSamples(),
     sampleValueLostToday: {},
+    commChain: createInitialCommChain(),
     log: [mission.intro]
   };
   resultEl.classList.add("hidden");
@@ -716,6 +800,7 @@ function start() {
   crewPanelEl.classList.remove("hidden");
   workshopPanelEl.classList.remove("hidden");
   samplesPanelEl.classList.remove("hidden");
+  commPanelEl.classList.remove("hidden");
   controlsPanelEl.classList.remove("hidden");
   autoAssignCrew();
   render();
@@ -1021,6 +1106,8 @@ function endDay() {
   dataGain += sampleDataGain;
   state.data += dataGain;
 
+  const commResult = processCommChainDay(eqEffects);
+
   const durDegrades = degradeEquipment();
 
   updateCrewAfterDay();
@@ -1073,6 +1160,24 @@ function endDay() {
     settlementLines.push(`【样本损坏】${dmgParts.join('，')}`);
     if (sampleDamage.totalValueLost > 0) {
       settlementLines.push(`【样本价值损失】总计-${sampleDamage.totalValueLost}分`);
+    }
+  }
+
+  if (commResult && commResult.log) {
+    if (commResult.phaseCompleted) {
+      const rw = [];
+      if (commResult.rewardApplied) {
+        if (commResult.rewardApplied.fuel) rw.push(`柴油+${commResult.rewardApplied.fuel}`);
+        if (commResult.rewardApplied.food) rw.push(`食物+${commResult.rewardApplied.food}`);
+        if (commResult.rewardApplied.morale) rw.push(`士气+${commResult.rewardApplied.morale}`);
+        if (commResult.rewardApplied.data) rw.push(`数据+${commResult.rewardApplied.data}`);
+      }
+      settlementLines.push(`【通信任务·阶段完成】✅ ${commResult.phaseName} 完成！${rw.length ? `奖励：${rw.join('，')}` : ''}`);
+      settlementLines.push(`【通信任务·基地密文】${commResult.log.replace(/^【通信】/, '')}`);
+    } else if (commResult.completed) {
+      settlementLines.push(`【通信任务链·全部完成】🎉 远程通信任务链圆满收尾，基地集体嘉奖令已颁发！`);
+    } else {
+      settlementLines.push(commResult.log);
     }
   }
 
@@ -1279,6 +1384,7 @@ function finish(success) {
   crewPanelEl.classList.add("hidden");
   workshopPanelEl.classList.add("hidden");
   samplesPanelEl.classList.add("hidden");
+  commPanelEl.classList.add("hidden");
   controlsPanelEl.classList.add("hidden");
   document.getElementById("returnBtn").addEventListener("click", () => {
     state = freshState();
@@ -1287,6 +1393,7 @@ function finish(success) {
     crewPanelEl.classList.add("hidden");
     workshopPanelEl.classList.add("hidden");
     samplesPanelEl.classList.add("hidden");
+    commPanelEl.classList.add("hidden");
     controlsPanelEl.classList.add("hidden");
     renderMissionCards();
     startBtn.disabled = true;
@@ -1297,6 +1404,223 @@ function finish(success) {
   renderArchive();
   render();
   if (tutorialActive) endTutorial();
+}
+
+function getCommChain() {
+  return commChains.find((c) => c.id === state.commChain.chainId);
+}
+
+function getCurrentPhase() {
+  const chain = getCommChain();
+  if (!chain) return null;
+  const idx = state.commChain.currentPhaseIndex;
+  if (idx >= chain.phases.length) return null;
+  return chain.phases[idx];
+}
+
+function processCommChainDay(eqEffects) {
+  const result = {
+    advanced: false,
+    completed: false,
+    phaseCompleted: false,
+    interrupted: false,
+    delayed: false,
+    rewardApplied: null,
+    log: null,
+    phaseName: null
+  };
+
+  if (state.commChain.isComplete) return result;
+
+  const chain = getCommChain();
+  const phase = getCurrentPhase();
+  if (!chain || !phase) return result;
+
+  result.phaseName = phase.name;
+
+  const commAllocated = state.allocations.comm;
+  const commRequired = state.weather.comm;
+  const commOk = commAllocated >= commRequired;
+  const isBlizzard = state.weather.name === "暴风雪";
+  const commEfficiency = eqEffects ? eqEffects.commEfficiency : 1.0;
+
+  const effectiveCommMin = Math.ceil(phase.commMin / Math.max(0.4, commEfficiency));
+
+  if (isBlizzard) {
+    result.interrupted = true;
+    const loss = Math.ceil(state.commChain.phaseProgress * COMM_INTERRUPT_PENALTY);
+    state.commChain.phaseProgress = Math.max(0, state.commChain.phaseProgress - loss);
+    if (state.commChain.delayDays < COMM_DELAY_MAX) {
+      state.commChain.delayDays += 1;
+      result.delayed = true;
+    }
+    result.log = `【通信中断】暴风雪干扰信号，${phase.name}进度-${loss}天（保留${state.commChain.phaseProgress}天）。${state.commChain.delayDays > 0 ? `累计延迟${state.commChain.delayDays}天。` : ""}`;
+    return result;
+  }
+
+  if (!commOk || commAllocated < effectiveCommMin) {
+    result.interrupted = true;
+    const reason = !commOk ? "未达天气通信最低需求" : `通信格数${commAllocated}未达阶段需求${effectiveCommMin}`;
+    const loss = Math.ceil(state.commChain.phaseProgress * COMM_INTERRUPT_PENALTY);
+    state.commChain.phaseProgress = Math.max(0, state.commChain.phaseProgress - loss);
+    if (state.commChain.delayDays < COMM_DELAY_MAX) {
+      state.commChain.delayDays += 1;
+      result.delayed = true;
+    }
+    result.log = `【通信中断】${reason}，${phase.name}进度-${loss}天（保留${state.commChain.phaseProgress}天）。${state.commChain.delayDays > 0 ? `累计延迟${state.commChain.delayDays}天。` : ""}`;
+    return result;
+  }
+
+  state.commChain.delayDays = Math.max(0, state.commChain.delayDays - 1);
+  state.commChain.phaseProgress += 1;
+  result.advanced = true;
+
+  if (state.commChain.phaseProgress >= phase.requiredDays) {
+    result.phaseCompleted = true;
+    state.commChain.completedPhases.push(phase.id);
+
+    if (phase.reward) {
+      result.rewardApplied = { ...phase.reward };
+      if (phase.reward.fuel) { state.fuel += phase.reward.fuel; state.commChain.totalRewards.fuel += phase.reward.fuel; }
+      if (phase.reward.food) { state.food += phase.reward.food; state.commChain.totalRewards.food += phase.reward.food; }
+      if (phase.reward.morale) { state.morale += phase.reward.morale; state.commChain.totalRewards.morale += phase.reward.morale; }
+      if (phase.reward.data) { state.data += phase.reward.data; state.commChain.totalRewards.data += phase.reward.data; }
+    }
+
+    if (phase.log) {
+      state.commChain.specialLogs.push({ phaseId: phase.id, phaseName: phase.name, text: phase.log, day: state.day });
+      result.log = phase.log;
+    }
+
+    state.commChain.currentPhaseIndex += 1;
+    state.commChain.phaseProgress = 0;
+
+    if (state.commChain.currentPhaseIndex >= chain.phases.length) {
+      state.commChain.isComplete = true;
+      result.completed = true;
+    }
+  } else {
+    result.log = `【通信推进】${phase.name}进度+1天（${state.commChain.phaseProgress}/${phase.requiredDays}天）。`;
+  }
+
+  return result;
+}
+
+function renderCommChain() {
+  const chain = getCommChain();
+  if (!chain) return;
+
+  commChainTitleEl.textContent = chain.name;
+
+  const cc = state.commChain;
+  let statusClass = "";
+  let statusText = "";
+
+  if (cc.isComplete) {
+    statusClass = "complete";
+    statusText = "全部完成 ✅";
+  } else if (cc.delayDays >= COMM_DELAY_MAX) {
+    statusClass = "delayed";
+    statusText = "严重延迟 ⚠";
+  } else if (cc.phaseProgress > 0 || cc.currentPhaseIndex > 0) {
+    statusClass = "active";
+    statusText = "进行中 ▶";
+  } else {
+    statusText = "待启动";
+  }
+
+  commChainStatusEl.className = `comm-status ${statusClass}`;
+  commChainStatusEl.textContent = statusText;
+
+  const phase = getCurrentPhase();
+  if (phase && !cc.isComplete) {
+    commChainProgressEl.textContent = `${cc.phaseProgress} / ${phase.requiredDays} 天`;
+    const pct = Math.round((cc.phaseProgress / phase.requiredDays) * 100);
+    const bar = commChainProgressBar.querySelector(".comm-progress-fill");
+    if (bar) bar.style.width = pct + "%";
+  } else if (cc.isComplete) {
+    commChainProgressEl.textContent = `${chain.phases.length} / ${chain.phases.length} 阶段`;
+    const bar = commChainProgressBar.querySelector(".comm-progress-fill");
+    if (bar) bar.style.width = "100%";
+  } else {
+    commChainProgressEl.textContent = "0 / 0 天";
+    const bar = commChainProgressBar.querySelector(".comm-progress-fill");
+    if (bar) bar.style.width = "0%";
+  }
+
+  if (cc.delayDays > 0 && !cc.isComplete) {
+    commChainDelayEl.classList.remove("hidden");
+    commChainDelayEl.textContent = `⏱ 延迟 ${cc.delayDays}天`;
+  } else {
+    commChainDelayEl.classList.add("hidden");
+  }
+
+  commPhasesEl.innerHTML = "";
+  chain.phases.forEach((p, idx) => {
+    const isDone = cc.completedPhases.includes(p.id);
+    const isCurrent = idx === cc.currentPhaseIndex && !cc.isComplete;
+    const isDelayed = isCurrent && cc.delayDays >= COMM_DELAY_MAX;
+
+    const phaseEl = document.createElement("div");
+    phaseEl.className = `comm-phase ${isDone ? "done" : ""} ${isCurrent ? "current" : ""} ${isDelayed ? "delayed" : ""}`;
+
+    let iconText = String(idx + 1);
+    if (isDone) iconText = "✓";
+    if (isDelayed) iconText = "!";
+
+    const rewardsParts = [];
+    if (p.reward) {
+      if (p.reward.fuel) rewardsParts.push(`⛽+${p.reward.fuel}`);
+      if (p.reward.food) rewardsParts.push(`🍞+${p.reward.food}`);
+      if (p.reward.morale) rewardsParts.push(`😊+${p.reward.morale}`);
+      if (p.reward.data) rewardsParts.push(`📊+${p.reward.data}`);
+    }
+
+    const tagText = isDone ? "已完成" : isCurrent ? (isDelayed ? "进行中·延迟" : "进行中") : "未开始";
+    const progressText = isCurrent ? `${cc.phaseProgress}/${p.requiredDays}天` : isDone ? `${p.requiredDays}/${p.requiredDays}天` : `需${p.requiredDays}天`;
+
+    phaseEl.innerHTML = `
+      <div class="comm-phase-icon">${iconText}</div>
+      <div class="comm-phase-body">
+        <div class="comm-phase-name">
+          ${p.name}
+          <span class="comm-phase-tag">${tagText}</span>
+        </div>
+        <div class="comm-phase-desc">${p.desc}</div>
+        <div class="comm-phase-meta">
+          <span>📡 通信≥${p.commMin}格</span>
+          <span>⏳ ${progressText}</span>
+        </div>
+        ${rewardsParts.length ? `<div class="comm-phase-rewards">奖励：${rewardsParts.join(" ")}</div>` : ""}
+      </div>
+    `;
+    commPhasesEl.appendChild(phaseEl);
+  });
+
+  const rw = cc.totalRewards;
+  const totalRewardSum = rw.fuel + rw.food + rw.morale + rw.data;
+  if (totalRewardSum > 0) {
+    commRewardsEl.classList.remove("hidden");
+    const listEl = commRewardsEl.querySelector(".comm-rewards-list");
+    const parts = [];
+    if (rw.fuel) parts.push(`<span>⛽ 柴油 +${rw.fuel}</span>`);
+    if (rw.food) parts.push(`<span>🍞 食物 +${rw.food}</span>`);
+    if (rw.morale) parts.push(`<span>😊 士气 +${rw.morale}</span>`);
+    if (rw.data) parts.push(`<span>📊 数据 +${rw.data}</span>`);
+    listEl.innerHTML = parts.join("");
+  } else {
+    commRewardsEl.classList.add("hidden");
+  }
+
+  if (cc.specialLogs.length > 0) {
+    commLogsEl.classList.remove("hidden");
+    const listEl = commLogsEl.querySelector(".comm-logs-list");
+    listEl.innerHTML = cc.specialLogs.map((l) =>
+      `<p>【第${l.day}天·${l.phaseName}】${l.text.replace(/^【通信】/, "")}</p>`
+    ).join("");
+  } else {
+    commLogsEl.classList.add("hidden");
+  }
 }
 
 function normalize() {
@@ -1390,6 +1714,19 @@ function render() {
     } else if (labPower > 0) {
       extraHints.push(`实验${labPower}格未达最低产出门槛（最低2格）`);
     }
+    const curPhase = getCurrentPhase();
+    if (curPhase && !state.commChain.isComplete) {
+      const eqEff = calculateEquipmentEffects();
+      const effCommMin = Math.ceil(curPhase.commMin / Math.max(0.4, eqEff.commEfficiency));
+      const isBlizzard = state.weather.name === "暴风雪";
+      if (isBlizzard) {
+        extraHints.push(`📡任务链「${curPhase.name}」暴风雪将中断进度（不清零）`);
+      } else {
+        extraHints.push(`📡任务链「${curPhase.name}」需通信≥${Math.max(effCommMin, state.weather.comm)}格以推进（${state.commChain.phaseProgress}/${curPhase.requiredDays}）`);
+      }
+    } else if (state.commChain.isComplete) {
+      extraHints.push(`📡任务链全部完成 ✅`);
+    }
     const crewPreview = previewCrewEffects();
     if (crewPreview.summary) extraHints.push(crewPreview.summary);
     const eqPreview = previewEquipmentEffects();
@@ -1406,6 +1743,7 @@ function render() {
     renderCrewSummary();
     renderEquipmentWorkshop();
     renderSamples();
+    renderCommChain();
   }
   renderAllocationValues();
   renderLog();
