@@ -101,6 +101,50 @@ const campaignEndingBtn = document.getElementById("campaignEndingBtn");
 const ARCHIVE_KEY = "polar_station_archive";
 const ARCHIVE_LIMIT = 20;
 const TUTORIAL_KEY = "polar_station_tutorial_done";
+const CUSTOM_LEVELS_KEY = "polar_station_custom_levels";
+const CUSTOM_LEVEL_ID_PREFIX = "custom_";
+
+const toggleEditorBtn = document.getElementById("toggleEditorBtn");
+const closeEditorBtn = document.getElementById("closeEditorBtn");
+const levelEditorPanel = document.getElementById("levelEditorPanel");
+const editorValidation = document.getElementById("editorValidation");
+const editorValidateBtn = document.getElementById("editorValidateBtn");
+const editorLoadDefaultBtn = document.getElementById("editorLoadDefaultBtn");
+const editorSaveBtn = document.getElementById("editorSaveBtn");
+const editorDeleteBtn = document.getElementById("editorDeleteBtn");
+const editorSavedList = document.getElementById("editorSavedList");
+
+const editorFields = {
+  name: document.getElementById("editorName"),
+  tag: document.getElementById("editorTag"),
+  color: document.getElementById("editorColor"),
+  desc: document.getElementById("editorDesc"),
+  days: document.getElementById("editorDays"),
+  fuel: document.getElementById("editorFuel"),
+  morale: document.getElementById("editorMorale"),
+  food: document.getElementById("editorFood"),
+  data: document.getElementById("editorData"),
+  allocHeat: document.getElementById("editorAllocHeat"),
+  allocComm: document.getElementById("editorAllocComm"),
+  allocLab: document.getElementById("editorAllocLab"),
+  allocFood: document.getElementById("editorAllocFood"),
+  weightSunny: document.getElementById("editorWeightSunny"),
+  weightCold: document.getElementById("editorWeightCold"),
+  weightBlizzard: document.getElementById("editorWeightBlizzard"),
+  weightNight: document.getElementById("editorWeightNight"),
+  dataGoal: document.getElementById("editorDataGoal"),
+  commBonus: document.getElementById("editorCommBonus"),
+  commBonusVal: document.getElementById("editorCommBonusVal"),
+  commMoraleBonus: document.getElementById("editorCommMoraleBonus"),
+  foodReserve: document.getElementById("editorFoodReserve"),
+  emergencyChance: document.getElementById("editorEmergencyChance"),
+  minFuel: document.getElementById("editorMinFuel"),
+  minMorale: document.getElementById("editorMinMorale"),
+  minFood: document.getElementById("editorMinFood"),
+  intro: document.getElementById("editorIntro")
+};
+
+let editorEditingId = null;
 
 function hideAllOverlays() {
   emergencyOverlay.classList.add("hidden");
@@ -1031,7 +1075,9 @@ function init() {
   endDayBtn.addEventListener("click", endDay);
   clearArchiveBtn.addEventListener("click", clearArchive);
   initTutorialEvents();
+  initEditorEvents();
   renderMissionCards();
+  renderSavedLevels();
   renderAllocations();
   renderArchive();
   render();
@@ -1064,10 +1110,21 @@ function renderMissionCards() {
   campaignCard.addEventListener("click", () => selectMission("campaign"));
   missionCardsEl.appendChild(campaignCard);
 
-  missions.forEach((mission) => {
+  const allMissions = getAllMissions();
+  allMissions.forEach((mission) => {
     const card = document.createElement("div");
-    card.className = "mission-card";
+    card.className = `mission-card ${mission.isCustom ? "custom-card" : ""}`;
     card.dataset.missionId = mission.id;
+    const goalText = mission.dataGoal
+      ? `科研成果（数据+样本价值）≥ ${mission.dataGoal}`
+      : `撑过 ${mission.days} 天`;
+    const extraReqs = [];
+    if (mission.isCustom) {
+      if (mission.minFuel) extraReqs.push(`柴油≥${mission.minFuel}`);
+      if (mission.minMorale) extraReqs.push(`士气≥${mission.minMorale}`);
+      if (mission.minFood) extraReqs.push(`食物≥${mission.minFood}`);
+    }
+    const goalFull = extraReqs.length > 0 ? `${goalText}；${extraReqs.join("，")}` : goalText;
     card.innerHTML = `
       <div class="mission-card-head" style="background:${mission.color}">
         <span class="mission-tag">${mission.tag}</span>
@@ -1082,11 +1139,29 @@ function renderMissionCards() {
           <span>天数<strong>${mission.days}</strong></span>
         </div>
         <div class="mission-goal">
-          目标：${mission.dataGoal ? `科研成果（数据+样本价值）≥ ${mission.dataGoal}` : `撑过 ${mission.days} 天`}
+          目标：${goalFull}
         </div>
+        ${mission.isCustom ? `
+          <div class="mission-card-actions">
+            <button type="button" class="mission-card-edit-btn" data-action="edit" data-id="${mission.id}">✏ 编辑</button>
+            <button type="button" class="mission-card-delete-btn" data-action="delete" data-id="${mission.id}">🗑 删除</button>
+          </div>
+        ` : ""}
       </div>
     `;
-    card.addEventListener("click", () => selectMission(mission.id));
+    card.addEventListener("click", (e) => {
+      const action = e.target.dataset.action;
+      const id = e.target.dataset.id;
+      if (action === "edit") {
+        e.stopPropagation();
+        editLevel(id);
+      } else if (action === "delete") {
+        e.stopPropagation();
+        deleteLevel(id);
+      } else {
+        selectMission(mission.id);
+      }
+    });
     missionCardsEl.appendChild(card);
   });
 }
@@ -1101,8 +1176,11 @@ function selectMission(missionId) {
     startBtn.textContent = "确认「极夜征途」剧情战役";
     addLog("已选择剧情战役：极夜征途。");
   } else {
-    const mission = missions.find((m) => m.id === missionId);
-    addLog(`已选择任务：${mission.name}。`);
+    const mission = findMissionById(missionId);
+    if (mission) {
+      addLog(`已选择任务：${mission.name}${mission.isCustom ? "（自定义关卡）" : ""}。`);
+      startBtn.textContent = `确认「${mission.name}」并进入电力分配`;
+    }
   }
   render();
 }
@@ -1120,11 +1198,32 @@ function start() {
   branchEventPending = null;
   tutorialActive = false;
 
-  const mission = missions.find((m) => m.id === state.selectedMissionId);
+  const mission = findMissionById(state.selectedMissionId);
+  if (!mission) return;
+
+  const customSuccessText = mission.isCustom ? function(s) {
+    const base = s.data >= (mission.dataGoal || 0)
+      ? `自定义关卡「${mission.name}」完成！科研成果 ${s.data}，达成目标。最终评分：${s.score}。`
+      : `自定义关卡「${mission.name}」撑过了${mission.days}天，但科研成果仅 ${s.data}（目标≥${mission.dataGoal || 0}）。最终评分：${s.score}。`;
+    const extra = [];
+    if (mission.minFuel && s.fuel < mission.minFuel) extra.push(`柴油未达最低要求（${s.fuel}/${mission.minFuel}）`);
+    if (mission.minMorale && s.morale < mission.minMorale) extra.push(`士气未达最低要求（${s.morale}/${mission.minMorale}）`);
+    if (mission.minFood && s.food < mission.minFood) extra.push(`食物未达最低要求（${s.food}/${mission.minFood}）`);
+    if (extra.length > 0) return base + ` 但部分条件未达成：${extra.join('，')}。`;
+    return base;
+  } : null;
+  const customFailText = mission.isCustom ? function(s) {
+    return `自定义关卡「${mission.name}」失败，某项关键资源归零。仅获得科研成果 ${s.data}。最终评分：${s.score}。`;
+  } : null;
+
   campaignState = null;
   state = {
     started: true,
-    mission: mission,
+    mission: {
+      ...mission,
+      successText: customSuccessText || mission.successText,
+      failText: customFailText || mission.failText
+    },
     selectedMissionId: mission.id,
     day: 1,
     fuel: mission.initial.fuel,
@@ -1143,6 +1242,7 @@ function start() {
   };
   resultEl.classList.add("hidden");
   missionDeskEl.classList.add("hidden");
+  levelEditorPanel.classList.add("hidden");
   crewPanelEl.classList.remove("hidden");
   workshopPanelEl.classList.remove("hidden");
   samplesPanelEl.classList.remove("hidden");
@@ -1731,7 +1831,7 @@ function endDay() {
     }
   }
 
-  if (Math.random() < EMERGENCY_CHANCE) {
+  if (Math.random() < getCustomEmergencyChance()) {
     const evt = emergencyEvents[Math.floor(Math.random() * emergencyEvents.length)];
     addLog(`⚠ 突发事件：${evt.name}！`);
     showEmergencyEvent(evt);
@@ -2155,6 +2255,14 @@ function finish(success) {
     return;
   }
 
+  let actualSuccess = success;
+  const customConditionsMet = checkCustomLevelVictoryConditions();
+  const isCustom = state.mission && state.mission.isCustom;
+
+  if (isCustom && success && !customConditionsMet) {
+    actualSuccess = false;
+  }
+
   const sampleStats = calculateSampleTotalValue();
   const sampleValue = sampleStats.totalValue;
   const sampleIntegrity = sampleStats.avgIntegrity;
@@ -2162,8 +2270,8 @@ function finish(success) {
     0,
     state.data + state.fuel + state.food + state.morale
   );
-  const summary = { score, data: state.data, mission: state.mission, sampleValue, sampleIntegrity };
-  const resultText = success
+  const summary = { score, data: state.data, fuel: state.fuel, morale: state.morale, food: state.food, mission: state.mission, sampleValue, sampleIntegrity };
+  const resultText = actualSuccess
     ? state.mission.successText(summary)
     : state.mission.failText(summary);
   let sampleBreakdown = "";
@@ -2173,9 +2281,26 @@ function finish(success) {
       sampleBreakdown += `${t.icon}${t.name}：现存${s.count}份(完整度${s.integrity}%)，共产出${s.totalProduced}份，损毁${s.totalLost}份；`;
     }
   });
+
+  const extraGoals = [];
+  if (isCustom) {
+    if (state.mission.minFuel) {
+      extraGoals.push(`柴油≥${state.mission.minFuel}，实际${state.fuel}，${state.fuel >= state.mission.minFuel ? "✅ 达成" : "❌ 未达成"}`);
+    }
+    if (state.mission.minMorale) {
+      extraGoals.push(`士气≥${state.mission.minMorale}，实际${state.morale}，${state.morale >= state.mission.minMorale ? "✅ 达成" : "❌ 未达成"}`);
+    }
+    if (state.mission.minFood) {
+      extraGoals.push(`食物≥${state.mission.minFood}，实际${state.food}，${state.food >= state.mission.minFood ? "✅ 达成" : "❌ 未达成"}`);
+    }
+  }
+  const extraGoalLines = extraGoals.length
+    ? extraGoals.map((g) => `<p class="result-goal" style="background:rgba(143,169,174,0.25);margin-top:6px">${g}</p>`).join("")
+    : "";
+
   saveArchiveRecord({
-    success: success,
-    missionName: state.mission.name,
+    success: actualSuccess,
+    missionName: state.mission.name + (isCustom ? "（自定义）" : ""),
     day: state.day,
     fuel: state.fuel,
     food: state.food,
@@ -2198,9 +2323,10 @@ function finish(success) {
     ? `<p style="font-size:13px;line-height:1.7;color:#c5d7da;margin-top:8px">${sampleBreakdown}</p>`
     : "";
   resultEl.innerHTML = `
-    <h2>${success ? "任务结束" : "任务失败"}</h2>
-    <p>${state.mission.name}</p>
+    <h2>${actualSuccess ? "任务结束" : (success ? "任务结束（部分条件未达成）" : "任务失败")}</h2>
+    <p>${state.mission.name}${isCustom ? " <span style='color:#f2c14e'>【自定义关卡】</span>" : ""}</p>
     ${goalLine}
+    ${extraGoalLines}
     ${sampleScoreLine}
     <p>柴油${state.fuel}，食物${state.food}，士气${state.morale}，科研成果${state.data}，样本价值${sampleValue}。</p>
     ${sampleDetailLine}
@@ -2222,6 +2348,7 @@ function finish(success) {
     state = freshState();
     campaignState = null;
     missionDeskEl.classList.remove("hidden");
+    levelEditorPanel.classList.add("hidden");
     crewPanelEl.classList.add("hidden");
     workshopPanelEl.classList.add("hidden");
     samplesPanelEl.classList.add("hidden");
@@ -2233,7 +2360,7 @@ function finish(success) {
     render();
     if (tutorialActive) endTutorial();
   });
-  addLog(success ? "任务周期结束，结果如上。" : "某项关键资源归零，任务提前中止。");
+  addLog(actualSuccess ? "任务周期结束，结果如上。" : (success ? "任务周期结束，但部分胜利条件未达成。" : "某项关键资源归零，任务提前中止。"));
   renderArchive();
   render();
   if (tutorialActive) endTutorial();
@@ -2530,8 +2657,12 @@ function render() {
     if (state.selectedMissionId === "campaign") {
       startBtn.textContent = "确认「极夜征途」剧情战役";
     } else {
-      const mission = missions.find((m) => m.id === state.selectedMissionId);
-      startBtn.textContent = `确认「${mission.name}」并进入电力分配`;
+      const mission = findMissionById(state.selectedMissionId);
+      if (mission) {
+        startBtn.textContent = `确认「${mission.name}」${mission.isCustom ? "（自定义关卡）" : ""}并进入电力分配`;
+      } else {
+        startBtn.textContent = "确认任务并进入电力分配";
+      }
     }
   } else {
     startBtn.textContent = "确认任务并进入电力分配";
@@ -3136,6 +3267,482 @@ function assignCrewStation(crewId, stationId) {
 
   addLog(`排班调整：${member.name} → ${stations.find((s) => s.id === stationId).name}${currentHolder ? `，${currentHolder.name} 接替原岗位` : ""}。`);
   render();
+}
+
+function loadCustomLevels() {
+  try {
+    const raw = localStorage.getItem(CUSTOM_LEVELS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveCustomLevels(levels) {
+  try {
+    localStorage.setItem(CUSTOM_LEVELS_KEY, JSON.stringify(levels));
+  } catch (e) {}
+}
+
+function getAllMissions() {
+  const customs = loadCustomLevels().map((l) => ({
+    ...l,
+    isCustom: true,
+    successText: function(s) {
+      const base = s.data >= (l.dataGoal || 0)
+        ? `自定义关卡「${l.name}」完成！科研成果 ${s.data}，达成目标。最终评分：${s.score}。`
+        : `自定义关卡「${l.name}」撑过了${l.days}天，但科研成果仅 ${s.data}（目标≥${l.dataGoal || 0}）。最终评分：${s.score}。`;
+      const extra = [];
+      if (l.minFuel && s.fuel < l.minFuel) extra.push(`柴油未达最低要求（${s.fuel}/${l.minFuel}）`);
+      if (l.minMorale && s.morale < l.minMorale) extra.push(`士气未达最低要求（${s.morale}/${l.minMorale}）`);
+      if (l.minFood && s.food < l.minFood) extra.push(`食物未达最低要求（${s.food}/${l.minFood}）`);
+      if (extra.length > 0) return base + ` 但部分条件未达成：${extra.join('，')}。`;
+      return base;
+    },
+    failText: function(s) {
+      return `自定义关卡「${l.name}」失败，某项关键资源归零。仅获得科研成果 ${s.data}。最终评分：${s.score}。`;
+    }
+  }));
+  return [...missions, ...customs];
+}
+
+function findMissionById(id) {
+  return getAllMissions().find((m) => m.id === id);
+}
+
+function getDefaultEditorConfig() {
+  return {
+    name: "",
+    tag: "自定义",
+    color: "#4f8a5b",
+    desc: "",
+    days: 7,
+    fuel: 80,
+    morale: 75,
+    food: 70,
+    data: 0,
+    allocHeat: 3,
+    allocComm: 2,
+    allocLab: 4,
+    allocFood: 3,
+    weightSunny: 1,
+    weightCold: 1,
+    weightBlizzard: 1,
+    weightNight: 1,
+    dataGoal: 150,
+    commBonus: false,
+    commBonusVal: 0,
+    commMoraleBonus: false,
+    foodReserve: false,
+    emergencyChance: 40,
+    minFuel: 0,
+    minMorale: 0,
+    minFood: 0,
+    intro: ""
+  };
+}
+
+function populateEditor(config) {
+  const f = editorFields;
+  f.name.value = config.name || "";
+  f.tag.value = config.tag || "自定义";
+  f.color.value = config.color || "#4f8a5b";
+  f.desc.value = config.desc || "";
+  f.days.value = config.days ?? 7;
+  f.fuel.value = config.fuel ?? 80;
+  f.morale.value = config.morale ?? 75;
+  f.food.value = config.food ?? 70;
+  f.data.value = config.data ?? 0;
+  f.allocHeat.value = config.allocHeat ?? 3;
+  f.allocComm.value = config.allocComm ?? 2;
+  f.allocLab.value = config.allocLab ?? 4;
+  f.allocFood.value = config.allocFood ?? 3;
+  f.weightSunny.value = config.weightSunny ?? 1;
+  f.weightCold.value = config.weightCold ?? 1;
+  f.weightBlizzard.value = config.weightBlizzard ?? 1;
+  f.weightNight.value = config.weightNight ?? 1;
+  f.dataGoal.value = config.dataGoal ?? 150;
+  f.commBonus.checked = !!config.commBonus;
+  f.commBonusVal.value = config.commBonusVal ?? 0;
+  f.commMoraleBonus.checked = !!config.commMoraleBonus;
+  f.foodReserve.checked = !!config.foodReserve;
+  f.emergencyChance.value = config.emergencyChance ?? 40;
+  f.minFuel.value = config.minFuel ?? 0;
+  f.minMorale.value = config.minMorale ?? 0;
+  f.minFood.value = config.minFood ?? 0;
+  f.intro.value = config.intro || "";
+}
+
+function collectEditorConfig() {
+  const f = editorFields;
+  return {
+    name: (f.name.value || "").trim(),
+    tag: (f.tag.value || "自定义").trim(),
+    color: (f.color.value || "#4f8a5b").trim(),
+    desc: (f.desc.value || "").trim(),
+    days: parseInt(f.days.value) || 0,
+    fuel: parseInt(f.fuel.value) || 0,
+    morale: parseInt(f.morale.value) || 0,
+    food: parseInt(f.food.value) || 0,
+    data: parseInt(f.data.value) || 0,
+    allocHeat: parseInt(f.allocHeat.value) || 0,
+    allocComm: parseInt(f.allocComm.value) || 0,
+    allocLab: parseInt(f.allocLab.value) || 0,
+    allocFood: parseInt(f.allocFood.value) || 0,
+    weightSunny: parseInt(f.weightSunny.value) || 0,
+    weightCold: parseInt(f.weightCold.value) || 0,
+    weightBlizzard: parseInt(f.weightBlizzard.value) || 0,
+    weightNight: parseInt(f.weightNight.value) || 0,
+    dataGoal: parseInt(f.dataGoal.value) || 0,
+    commBonus: f.commBonus.checked,
+    commBonusVal: parseInt(f.commBonusVal.value) || 0,
+    commMoraleBonus: f.commMoraleBonus.checked,
+    foodReserve: f.foodReserve.checked,
+    emergencyChance: parseInt(f.emergencyChance.value) || 0,
+    minFuel: parseInt(f.minFuel.value) || 0,
+    minMorale: parseInt(f.minMorale.value) || 0,
+    minFood: parseInt(f.minFood.value) || 0,
+    intro: (f.intro.value || "").trim()
+  };
+}
+
+function editorConfigToMission(config, id) {
+  const weatherWeight = {
+    "晴朗": config.weightSunny,
+    "低温": config.weightCold,
+    "暴风雪": config.weightBlizzard,
+    "极夜静风": config.weightNight
+  };
+  const hasAnyWeight = Object.values(weatherWeight).some((v) => v > 0);
+
+  return {
+    id: id,
+    name: config.name,
+    tag: config.tag,
+    desc: config.desc || `自定义关卡：${config.days}天值班挑战。`,
+    color: config.color,
+    days: config.days,
+    initial: {
+      fuel: Math.max(0, Math.min(100, config.fuel)),
+      morale: Math.max(0, Math.min(100, config.morale)),
+      food: Math.max(0, Math.min(100, config.food)),
+      data: Math.max(0, config.data)
+    },
+    allocations: {
+      heat: Math.max(0, Math.min(7, config.allocHeat)),
+      comm: Math.max(0, Math.min(7, config.allocComm)),
+      lab: Math.max(0, Math.min(7, config.allocLab)),
+      food: Math.max(0, Math.min(7, config.allocFood))
+    },
+    dataGoal: Math.max(0, config.dataGoal),
+    dataPerLab: 0,
+    weatherWeight: hasAnyWeight ? weatherWeight : null,
+    commBonus: config.commBonus ? Math.max(0, Math.min(20, config.commBonusVal)) : undefined,
+    commMoraleBonus: config.commMoraleBonus || undefined,
+    foodReserve: config.foodReserve || undefined,
+    emergencyChance: Math.max(0, Math.min(100, config.emergencyChance)) / 100,
+    minFuel: Math.max(0, Math.min(100, config.minFuel)),
+    minMorale: Math.max(0, Math.min(100, config.minMorale)),
+    minFood: Math.max(0, Math.min(100, config.minFood)),
+    intro: config.intro || `自定义关卡「${config.name}」开始：${config.days}天值班，目标科研成果≥${config.dataGoal}。祝你好运！`,
+    isCustom: true,
+    successText: null,
+    failText: null
+  };
+}
+
+function validateLevelConfig(config) {
+  const errors = [];
+  const warnings = [];
+
+  if (!config.name || config.name.length < 1) {
+    errors.push("关卡名称不能为空");
+  }
+  if (config.name && config.name.length > 20) {
+    errors.push("关卡名称不能超过20个字符");
+  }
+
+  if (config.days < 1) {
+    errors.push("值班天数至少为1天");
+  } else if (config.days > 30) {
+    errors.push("值班天数不能超过30天");
+  }
+
+  if (config.fuel <= 0 && config.days > 1) {
+    errors.push("初始柴油为0，且天数>1，游戏将在第一天结束必然失败（电力消耗会导致柴油≤0）");
+  }
+  if (config.food <= 0 && config.days > 1) {
+    errors.push("初始食物为0，且天数>1，游戏将在第一天结束必然失败（每天都会损耗食物）");
+  }
+  if (config.morale <= 0) {
+    errors.push("初始士气为0，游戏开始即失败");
+  }
+
+  if (config.fuel < 10 && config.days > 3) {
+    warnings.push(`初始柴油仅 ${config.fuel}，天数 ${config.days} 天，资源非常紧张，极有可能失败`);
+  }
+  if (config.food < 15 && config.days > 3) {
+    warnings.push(`初始食物仅 ${config.food}，天数 ${config.days} 天，食物可能不足`);
+  }
+  if (config.morale < 30) {
+    warnings.push(`初始士气仅 ${config.morale}，一个暴风雪天就可能导致士气归零`);
+  }
+
+  const totalWeight = config.weightSunny + config.weightCold + config.weightBlizzard + config.weightNight;
+  if (totalWeight <= 0) {
+    errors.push("天气权重不能全部为0，至少要有一种天气可能出现");
+  }
+
+  if (config.weightBlizzard >= 6 && config.days >= 5) {
+    warnings.push("暴风雪权重过高，游戏难度将非常大");
+  }
+
+  const totalAlloc = config.allocHeat + config.allocComm + config.allocLab + config.allocFood;
+  if (totalAlloc > 12) {
+    warnings.push(`初始电力分配总和为 ${totalAlloc}，而大部分天气可用电力仅10-12，开局即可能超配`);
+  }
+
+  if (config.dataGoal > 0) {
+    const expectedDailyData = 15;
+    const expectedTotal = expectedDailyData * config.days + config.data;
+    if (config.dataGoal > expectedTotal * 2.5) {
+      warnings.push(`科研目标 ${config.dataGoal} 偏高，按平均每天约${expectedDailyData}数据计算，${config.days}天预计可达成约${expectedTotal}。需要非常高的实验效率`);
+    }
+  }
+
+  if (config.dataGoal > 0 && config.allocLab < 2 && config.days < 5) {
+    warnings.push("科研目标>0但初始实验电力分配<2且天数<5，几乎不可能产出样本达成目标");
+  }
+
+  if (config.minFuel > config.fuel) {
+    errors.push(`最终燃油最低要求 (${config.minFuel}) 高于初始燃油 (${config.fuel})，必败`);
+  }
+  if (config.minMorale > config.morale) {
+    errors.push(`最终士气最低要求 (${config.minMorale}) 高于初始士气 (${config.morale})，必败`);
+  }
+  if (config.minFood > config.food) {
+    errors.push(`最终食物最低要求 (${config.minFood}) 高于初始食物 (${config.food})，必败`);
+  }
+
+  const minTotalReq = config.minFuel + config.minMorale + config.minFood;
+  if (minTotalReq > 0 && config.days <= 1) {
+    warnings.push("设置了胜败最低要求但仅1天，资源基本不会变化，意义不大");
+  }
+
+  if (config.emergencyChance > 70) {
+    warnings.push(`突发事件概率 ${config.emergencyChance}% 过高，游戏会非常混乱`);
+  }
+
+  return { valid: errors.length === 0, errors, warnings };
+}
+
+function showValidationResult(result) {
+  if (!result) {
+    editorValidation.classList.add("hidden");
+    editorValidation.className = "editor-validation hidden";
+    return;
+  }
+
+  editorValidation.classList.remove("hidden");
+
+  if (result.valid && result.warnings.length === 0) {
+    editorValidation.className = "editor-validation success";
+    editorValidation.innerHTML = `<strong>✅ 配置校验通过！</strong>此配置可正常游玩。`;
+  } else if (result.valid) {
+    editorValidation.className = "editor-validation warning";
+    editorValidation.innerHTML = `
+      <strong>⚠ 配置校验通过，但有以下警告：</strong>
+      <ul>${result.warnings.map((w) => `<li>${w}</li>`).join("")}</ul>
+    `;
+  } else {
+    editorValidation.className = "editor-validation error";
+    editorValidation.innerHTML = `
+      <strong>❌ 配置校验失败，存在以下问题：</strong>
+      <ul>${result.errors.map((e) => `<li>${e}</li>`).join("")}</ul>
+      ${result.warnings.length ? `<hr style="border-color:#e0c070;margin:8px 0"><strong style="color:#8e5a1a">同时有以下警告：</strong><ul>${result.warnings.map((w) => `<li>${w}</li>`).join("")}</ul>` : ""}
+    `;
+  }
+}
+
+function openEditor() {
+  levelEditorPanel.classList.remove("hidden");
+  editorEditingId = null;
+  editorDeleteBtn.classList.add("hidden");
+  editorSaveBtn.textContent = "💾 保存为新关卡";
+  populateEditor(getDefaultEditorConfig());
+  editorValidation.classList.add("hidden");
+  renderSavedLevels();
+  levelEditorPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function closeEditor() {
+  levelEditorPanel.classList.add("hidden");
+  editorEditingId = null;
+}
+
+function editLevel(id) {
+  const levels = loadCustomLevels();
+  const level = levels.find((l) => l.id === id);
+  if (!level) return;
+
+  editorEditingId = id;
+  editorDeleteBtn.classList.remove("hidden");
+  editorSaveBtn.textContent = "💾 更新此关卡";
+
+  populateEditor({
+    name: level.name,
+    tag: level.tag,
+    color: level.color,
+    desc: level.desc,
+    days: level.days,
+    fuel: level.initial.fuel,
+    morale: level.initial.morale,
+    food: level.initial.food,
+    data: level.initial.data,
+    allocHeat: level.allocations.heat,
+    allocComm: level.allocations.comm,
+    allocLab: level.allocations.lab,
+    allocFood: level.allocations.food,
+    weightSunny: level.weatherWeight ? level.weatherWeight["晴朗"] ?? 1 : 1,
+    weightCold: level.weatherWeight ? level.weatherWeight["低温"] ?? 1 : 1,
+    weightBlizzard: level.weatherWeight ? level.weatherWeight["暴风雪"] ?? 1 : 1,
+    weightNight: level.weatherWeight ? level.weatherWeight["极夜静风"] ?? 1 : 1,
+    dataGoal: level.dataGoal,
+    commBonus: !!level.commBonus,
+    commBonusVal: level.commBonus || 0,
+    commMoraleBonus: !!level.commMoraleBonus,
+    foodReserve: !!level.foodReserve,
+    emergencyChance: level.emergencyChance !== undefined ? Math.round(level.emergencyChance * 100) : 40,
+    minFuel: level.minFuel || 0,
+    minMorale: level.minMorale || 0,
+    minFood: level.minFood || 0,
+    intro: level.intro
+  });
+
+  editorValidation.classList.add("hidden");
+  levelEditorPanel.classList.remove("hidden");
+  levelEditorPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function deleteLevel(id) {
+  if (!confirm("确定要删除这个自定义关卡吗？此操作不可撤销。")) return;
+  const levels = loadCustomLevels().filter((l) => l.id !== id);
+  saveCustomLevels(levels);
+
+  if (editorEditingId === id) {
+    editorEditingId = null;
+    editorDeleteBtn.classList.add("hidden");
+    editorSaveBtn.textContent = "💾 保存为新关卡";
+    populateEditor(getDefaultEditorConfig());
+  }
+
+  renderSavedLevels();
+  renderMissionCards();
+}
+
+function saveEditorLevel() {
+  const config = collectEditorConfig();
+  const validation = validateLevelConfig(config);
+
+  if (!validation.valid) {
+    showValidationResult(validation);
+    alert("配置存在错误，请先修正后再保存。");
+    return;
+  }
+
+  const levels = loadCustomLevels();
+  const missionData = editorConfigToMission(config, editorEditingId || (CUSTOM_LEVEL_ID_PREFIX + Date.now()));
+
+  let saveLevels;
+  if (editorEditingId) {
+    saveLevels = levels.map((l) => (l.id === editorEditingId ? missionData : l));
+  } else {
+    saveLevels = [...levels, missionData];
+  }
+
+  saveCustomLevels(saveLevels);
+  showValidationResult({ valid: true, errors: [], warnings: [] });
+  renderSavedLevels();
+  renderMissionCards();
+
+  setTimeout(() => {
+    const tempDiv = document.createElement("div");
+    tempDiv.className = "editor-validation success";
+    tempDiv.innerHTML = `<strong>✅ 已保存！</strong>关卡「${config.name}」已保存，可以在任务选择台中找到并游玩。`;
+    editorValidation.replaceWith(tempDiv);
+    tempDiv.id = "editorValidation";
+    setTimeout(() => {
+      tempDiv.classList.add("hidden");
+    }, 3000);
+  }, 100);
+}
+
+function renderSavedLevels() {
+  const levels = loadCustomLevels();
+  if (levels.length === 0) {
+    editorSavedList.innerHTML = `<div class="editor-saved-empty">暂无保存的自定义关卡，完成配置后点击上方「保存为新关卡」。</div>`;
+    return;
+  }
+
+  editorSavedList.innerHTML = "";
+  levels.forEach((level) => {
+    const item = document.createElement("div");
+    item.className = "editor-saved-item";
+    item.innerHTML = `
+      <div class="editor-saved-item-head">
+        <span class="editor-saved-item-name">${level.name}</span>
+        <span class="editor-saved-item-tag" style="background:${level.color}">${level.tag}</span>
+      </div>
+      <div class="editor-saved-item-desc">${level.desc || "（无描述）"}</div>
+      <div class="editor-saved-item-stats">
+        <span>天数<strong>${level.days}</strong></span>
+        <span>目标<strong>${level.dataGoal}</strong></span>
+        <span>柴油<strong>${level.initial.fuel}</strong></span>
+        <span>食物<strong>${level.initial.food}</strong></span>
+      </div>
+    `;
+    item.addEventListener("click", () => editLevel(level.id));
+    editorSavedList.appendChild(item);
+  });
+}
+
+function initEditorEvents() {
+  toggleEditorBtn.addEventListener("click", openEditor);
+  closeEditorBtn.addEventListener("click", closeEditor);
+  editorLoadDefaultBtn.addEventListener("click", () => {
+    populateEditor(getDefaultEditorConfig());
+    editorEditingId = null;
+    editorDeleteBtn.classList.add("hidden");
+    editorSaveBtn.textContent = "💾 保存为新关卡";
+    editorValidation.classList.add("hidden");
+  });
+  editorValidateBtn.addEventListener("click", () => {
+    const config = collectEditorConfig();
+    const result = validateLevelConfig(config);
+    showValidationResult(result);
+  });
+  editorSaveBtn.addEventListener("click", saveEditorLevel);
+  editorDeleteBtn.addEventListener("click", () => {
+    if (editorEditingId) deleteLevel(editorEditingId);
+  });
+}
+
+function getCustomEmergencyChance() {
+  if (state.mission && state.mission.emergencyChance !== undefined) {
+    return state.mission.emergencyChance;
+  }
+  return EMERGENCY_CHANCE;
+}
+
+function checkCustomLevelVictoryConditions() {
+  if (!state.mission || !state.mission.isCustom) return true;
+  let ok = true;
+  if (state.mission.minFuel && state.fuel < state.mission.minFuel) ok = false;
+  if (state.mission.minMorale && state.morale < state.mission.minMorale) ok = false;
+  if (state.mission.minFood && state.food < state.mission.minFood) ok = false;
+  return ok;
 }
 
 init();
