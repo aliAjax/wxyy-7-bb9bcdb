@@ -28,7 +28,7 @@
       <div class="mission-desk-head">
         <div>
           <h2>任务选择台</h2>
-          <p class="mission-desc">选择一项科考任务，不同任务拥有不同的初始资源、科研成果目标和结算方式。实验电力用于产出科研样本，<b></b>样本仅在成功返运后才计入最终科研成果</b>。通信、冷藏、恒温与最终资源决定返运成功率，请在样本面板设置返运优先级。</p>
+          <p class="mission-desc">选择一项科考任务，不同任务拥有不同的初始资源、科研成果目标和结算方式。实验电力用于产出科研样本，<b>样本仅在成功返运后才计入最终科研成果</b>。通信、冷藏、恒温与最终资源决定返运成功率，请在样本面板设置返运优先级。</p>
         </div>
         <button id="toggleEditorBtn" type="button" class="editor-toggle-btn">⚙ 关卡编辑器</button>
       </div>
@@ -175,6 +175,10 @@
           <div class="editor-field">
             <label>科研成果目标 <span class="field-hint">(胜利条件之一)</span></label>
             <input type="number" id="editorDataGoal" min="0" max="1000" value="150">
+          </div>
+          <div class="editor-field">
+            <label>返运价值目标 <span class="field-hint">(胜利条件之一，设0则不要求)</span></label>
+            <input type="number" id="editorReturnedValueGoal" min="0" max="1000" value="0">
           </div>
           <div class="editor-field checkbox-field">
             <label><input type="checkbox" id="editorCommBonus"> 通信达标额外奖励数据</label>

@@ -192,6 +192,7 @@ const editorFields = {
   weightBlizzard: document.getElementById("editorWeightBlizzard"),
   weightNight: document.getElementById("editorWeightNight"),
   dataGoal: document.getElementById("editorDataGoal"),
+  returnedValueGoal: document.getElementById("editorReturnedValueGoal"),
   commBonus: document.getElementById("editorCommBonus"),
   commBonusVal: document.getElementById("editorCommBonusVal"),
   commMoraleBonus: document.getElementById("editorCommMoraleBonus"),
@@ -3093,10 +3094,13 @@ function showCampaignEnding(lastChapterSuccess, allObjectivesMet, lastOutcome) {
     morale: lastOutcome.morale,
     data: lastOutcome.data,
     sampleValue: lastOutcome.sampleValue,
+    sampleDiscoveredValue: totalDiscovered,
+    sampleReturnedValue: totalReturned,
+    returnSettlement: lastOutcome.returnSettlement ? JSON.parse(JSON.stringify(lastOutcome.returnSettlement)) : null,
     sampleIntegrity: lastOutcome.sampleIntegrity,
     commComplete: commComplete,
     score: totalScore,
-    ending: `${ending.rank}级·${ending.name}`,
+    ending: `${ending.rank}级·${ending.name}（发现${totalDiscovered}·返运${totalReturned}·科研${totalResearch}）`,
     crew: JSON.parse(JSON.stringify(lastOutcome.crew || state.crew))
   });
 
@@ -3113,12 +3117,7 @@ function finish(success) {
   }
 
   let actualSuccess = success;
-  const customConditionsMet = checkCustomLevelVictoryConditions();
   const isCustom = state.mission && state.mission.isCustom;
-
-  if (isCustom && success && !customConditionsMet) {
-    actualSuccess = false;
-  }
 
   const sampleStats = calculateSampleTotalValue();
   const sampleValue = sampleStats.totalValue;
@@ -3148,6 +3147,13 @@ function finish(success) {
   const returnedValue = returnSettlement.returnedValue;
   const finalResearchValue = state.data + returnedValue;
 
+  if (isCustom && success) {
+    const customConditionsMet = checkCustomLevelVictoryConditions(finalResearchValue, returnedValue);
+    if (!customConditionsMet) {
+      actualSuccess = false;
+    }
+  }
+
   const score = Math.max(
     0,
     finalResearchValue + state.fuel + state.food + state.morale
@@ -3162,6 +3168,9 @@ function finish(success) {
     if (isCustom) {
       if (state.mission.dataGoal && state.mission.dataGoal > 0 && finalResearchValue < state.mission.dataGoal) {
         unmet.push(`科研成果未达标（${finalResearchValue}/${state.mission.dataGoal}）`);
+      }
+      if (state.mission.returnedValueGoal && state.mission.returnedValueGoal > 0 && returnedValue < state.mission.returnedValueGoal) {
+        unmet.push(`返运价值未达标（${returnedValue}/${state.mission.returnedValueGoal}）`);
       }
       if (state.mission.minFuel && state.fuel < state.mission.minFuel) {
         unmet.push(`柴油未达最低要求（${state.fuel}/${state.mission.minFuel}）`);
@@ -4758,6 +4767,7 @@ function getDefaultEditorConfig() {
     weightBlizzard: 1,
     weightNight: 1,
     dataGoal: 150,
+    returnedValueGoal: 0,
     commBonus: false,
     commBonusVal: 0,
     commMoraleBonus: false,
@@ -4790,6 +4800,7 @@ function populateEditor(config) {
   f.weightBlizzard.value = config.weightBlizzard ?? 1;
   f.weightNight.value = config.weightNight ?? 1;
   f.dataGoal.value = config.dataGoal ?? 150;
+  f.returnedValueGoal.value = config.returnedValueGoal ?? 0;
   f.commBonus.checked = !!config.commBonus;
   f.commBonusVal.value = config.commBonusVal ?? 0;
   f.commMoraleBonus.checked = !!config.commMoraleBonus;
@@ -4822,6 +4833,7 @@ function collectEditorConfig() {
     weightBlizzard: parseInt(f.weightBlizzard.value) || 0,
     weightNight: parseInt(f.weightNight.value) || 0,
     dataGoal: parseInt(f.dataGoal.value) || 0,
+    returnedValueGoal: parseInt(f.returnedValueGoal.value) || 0,
     commBonus: f.commBonus.checked,
     commBonusVal: parseInt(f.commBonusVal.value) || 0,
     commMoraleBonus: f.commMoraleBonus.checked,
@@ -4863,6 +4875,7 @@ function editorConfigToMission(config, id) {
       food: Math.max(0, Math.min(7, config.allocFood))
     },
     dataGoal: Math.max(0, config.dataGoal),
+    returnedValueGoal: Math.max(0, config.returnedValueGoal),
     dataPerLab: 0,
     weatherWeight: hasAnyWeight ? weatherWeight : null,
     commBonus: config.commBonus ? Math.max(0, Math.min(20, config.commBonusVal)) : undefined,
@@ -4872,7 +4885,7 @@ function editorConfigToMission(config, id) {
     minFuel: Math.max(0, Math.min(100, config.minFuel)),
     minMorale: Math.max(0, Math.min(100, config.minMorale)),
     minFood: Math.max(0, Math.min(100, config.minFood)),
-    intro: config.intro || `自定义关卡「${config.name}」开始：${config.days}天值班，目标科研成果≥${config.dataGoal}。祝你好运！`,
+    intro: config.intro || `自定义关卡「${config.name}」开始：${config.days}天值班，目标科研成果≥${config.dataGoal}${config.returnedValueGoal > 0 ? `，返运价值≥${config.returnedValueGoal}` : ''}。祝你好运！`,
     isCustom: true,
     successText: null,
     failText: null
@@ -4938,8 +4951,16 @@ function validateLevelConfig(config) {
     }
   }
 
-  if (config.dataGoal > 0 && config.allocLab < 2 && config.days < 5) {
-    warnings.push("科研目标>0但初始实验电力分配<2且天数<5，几乎不可能产出样本达成目标");
+  if (config.returnedValueGoal > 0) {
+    const expectedDailySampleValue = 20;
+    const expectedTotalReturned = expectedDailySampleValue * config.days * 0.6;
+    if (config.returnedValueGoal > expectedTotalReturned * 2) {
+      warnings.push(`返运价值目标 ${config.returnedValueGoal} 偏高，按平均每天约${expectedDailySampleValue}样本价值、60%返运成功率计算，${config.days}天预计可返运约${Math.round(expectedTotalReturned)}。需要非常好的资源保障`);
+    }
+  }
+
+  if ((config.dataGoal > 0 || config.returnedValueGoal > 0) && config.allocLab < 2 && config.days < 5) {
+    warnings.push("科研/返运目标>0但初始实验电力分配<2且天数<5，几乎不可能产出样本达成目标");
   }
 
   if (config.minFuel > config.fuel) {
@@ -5252,10 +5273,13 @@ function getCustomEmergencyChance() {
   return EMERGENCY_CHANCE;
 }
 
-function checkCustomLevelVictoryConditions() {
+function checkCustomLevelVictoryConditions(finalResearchValue, returnedValue) {
   if (!state.mission || !state.mission.isCustom) return true;
   let ok = true;
-  if (state.mission.dataGoal && state.mission.dataGoal > 0 && state.data < state.mission.dataGoal) ok = false;
+  const research = finalResearchValue !== undefined ? finalResearchValue : state.data;
+  const returned = returnedValue !== undefined ? returnedValue : 0;
+  if (state.mission.dataGoal && state.mission.dataGoal > 0 && research < state.mission.dataGoal) ok = false;
+  if (state.mission.returnedValueGoal && state.mission.returnedValueGoal > 0 && returned < state.mission.returnedValueGoal) ok = false;
   if (state.mission.minFuel && state.fuel < state.mission.minFuel) ok = false;
   if (state.mission.minMorale && state.morale < state.mission.minMorale) ok = false;
   if (state.mission.minFood && state.food < state.mission.minFood) ok = false;
