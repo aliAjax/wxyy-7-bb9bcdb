@@ -398,8 +398,8 @@ const commChains = [
       {
         id: "coords",
         name: "坐标回传",
-        desc: "连续两小时以高功率发送 GPS 校准坐标，供空投系统锁定。",
-        requiredDays: 2,
+        desc: "以高功率发送 GPS 校准坐标，供空投系统快速锁定。",
+        requiredDays: 1,
         commMin: 3,
         reward: { data: 10 },
         log: "【通信】坐标校准完毕。基地回复：已锁定站点位置，误差半径 < 12 米。"
@@ -407,8 +407,8 @@ const commChains = [
       {
         id: "sample_summary",
         name: "样本摘要传输",
-        desc: "将样本元数据（类型、数量、完整度快照）打包回传供基地预分析。",
-        requiredDays: 2,
+        desc: "将样本元数据（类型、数量、完整度快照）压缩打包回传供基地预分析。",
+        requiredDays: 1,
         commMin: 3,
         reward: { data: 18, morale: 4 },
         log: "【通信】样本摘要成功接收！基地科研组兴奋回复：冰芯年代数据远超预期，建议加强冷藏。"
@@ -417,7 +417,7 @@ const commChains = [
         id: "supply_window",
         name: "申请补给窗口",
         desc: "发送物资需求清单并与调度中心确认补给空投的气象窗口。",
-        requiredDays: 2,
+        requiredDays: 1,
         commMin: 4,
         reward: { fuel: 15, food: 12, morale: 8 },
         log: "【通信】补给窗口确认！基地调度：直升机将于换班日附带应急物资，预计燃油+15、食物+12。"
