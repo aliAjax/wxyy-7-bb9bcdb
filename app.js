@@ -1041,14 +1041,14 @@ const tutorialSteps = [
   },
   {
     title: "第二步：为四个系统分配电力",
-    desc: "拖动下方四个滑块分配当天有限的电力。总和不得超过天气给出的可用电力（超出时会报错无法结束当天）。\n\n⚠️ 关键：实验电力只用于产出科研样本，数据来自样本产出等价转换+通信奖励。供暖/通信/冷藏不足会损坏已有样本！",
+    desc: "拖动下方四个滑块分配当天有限的电力。总和不得超过天气给出的可用电力（超出时会报错无法结束当天）。\n\n⚠️ 关键：实验电力只用于产出科研样本，科研数据仅来自通信在线奖励+队员专长。供暖/通信/冷藏不足会损坏已有样本！",
     targetSelector: "#controlsPanel",
     cardPosition: "above",
     showSystems: true
   },
   {
     title: "第三步：结束今天，观察资源变化",
-    desc: "点击「结束今天」后，系统按你分配的电力结算：\n• 未满足供暖/通信最低要求 → 扣士气+损坏样本完整度\n• 电力总和 + 天气附加 → 消耗柴油\n• 食物储藏电力不足 → 食物加速损耗+冰芯样本融化\n• 实验室电力 → 产出科研样本（现场发现价值累计）\n• 通信在线 → 获得额外观测数据，提升样本返运成功率\n• 即使保存达标，样本也会缓慢自然损耗（完整度衰减）\n\n【重要】样本需在任务结束时成功<b>返运</b>才计入最终科研成果！通信/冷藏/恒温/最终资源+天气+优先级共同决定返运成功率。\n\n直到任务结束（任务通关可返运）或某项资源归零失败（失败则无返运）。",
+    desc: "点击「结束今天」后，系统按你分配的电力结算：\n• 未满足供暖/通信最低要求 → 扣士气+损坏样本完整度\n• 电力总和 + 天气附加 → 消耗柴油\n• 食物储藏电力不足 → 食物加速损耗+冰芯样本融化\n• 实验室电力 → 产出科研样本（现场发现价值累计，不计入数据）\n• 通信在线 → 获得额外观测数据，提升样本返运成功率\n• 即使保存达标，样本也会缓慢自然损耗（完整度衰减）\n\n【重要】样本需在任务结束时成功<b>返运</b>才计入最终科研成果！通信/冷藏/恒温/最终资源+天气+优先级共同决定返运成功率。\n\n直到任务结束（任务通关可返运）或某项资源归零失败（失败则无返运）。",
     targetSelector: ".dashboard",
     cardPosition: "below",
     showSystems: false
@@ -1651,7 +1651,7 @@ function renderMissionCards() {
     card.className = `mission-card ${mission.isCustom ? "custom-card" : ""} ${state.selectedMissionId === mission.id ? "selected" : ""}`;
     card.dataset.missionId = mission.id;
     const goalText = mission.dataGoal
-      ? `科研成果（数据+样本价值）≥ ${mission.dataGoal}`
+      ? `科研成果（数据+返运样本价值）≥ ${mission.dataGoal}`
       : `撑过 ${mission.days} 天`;
     const extraReqs = [];
     if (mission.isCustom) {
@@ -2140,7 +2140,6 @@ function produceSamples(labPower, labEfficiency, crewDataBoost) {
       const val = total * type.value;
       result.produced.push({ typeId: type.id, type, count: total, value: val });
       result.totalValueGained += val;
-      result.dataEquivalent += val;
     }
   });
   return result;
@@ -2506,8 +2505,6 @@ function endDay() {
     dataGain += missionCommBonus;
   }
   dataGain += crewEffects.dataBoost;
-  const sampleDataGain = sampleResult.dataEquivalent;
-  dataGain += sampleDataGain;
   state.data += dataGain;
 
   const commResult = processCommChainDay(eqEffects);
@@ -2531,11 +2528,10 @@ function endDay() {
   if (crewEffects.moraleBoost > 0) settlementLines.push(`• 士气增益：+${crewEffects.moraleBoost}（队员专长）`);
   settlementLines.push(`• 食物损耗：${baseFoodLoss}（基础）${crewFoodSave > 0 ? ` - ${crewFoodSave}（队员节省）` : ''}${eqFoodLoss > 0 ? ` + ${eqFoodLoss}（冷库老化）` : eqFoodLoss < 0 ? ` ${eqFoodLoss}（冷库升级）` : ''} = ${foodLoss}`);
   const dataParts = [];
-  if (sampleDataGain > 0) dataParts.push(`${sampleDataGain}（样本产出等价）`);
-  if (commDataGain > 0) dataParts.push(`+${commDataGain}（通信在线）`);
+  if (commDataGain > 0) dataParts.push(`${commDataGain}（通信在线）`);
   if (missionCommBonus > 0) dataParts.push(`+${missionCommBonus}（任务奖励）`);
   if (crewEffects.dataBoost > 0) dataParts.push(`+${crewEffects.dataBoost}（队员专长）`);
-  settlementLines.push(`• 数据产出：${dataParts.length ? dataParts.join(' ') : '0（未产出样本）'} = ${dataGain}`);
+  settlementLines.push(`• 数据产出：${dataParts.length ? dataParts.join(' ') : '0'} = ${dataGain}`);
 
   if (eqEffects.details.length > 0) {
     settlementLines.push(`【设备状态】${eqEffects.details.join('；')}`);
@@ -5335,7 +5331,6 @@ function computeDayPreview() {
   const labPower = state.allocations.lab;
   const labEfficiency = eqEffects.labEfficiency;
   const crewDataBoost = crewEffects.dataBoost;
-  let samplePreviewDataGain = 0;
   const sampleProducedPreview = [];
   sampleTypes.forEach((type) => {
     const s = state.samples[type.id];
@@ -5347,14 +5342,12 @@ function computeDayPreview() {
     const chance = Math.min(0.95, baseChance * effMult * crewBonus * bonusMult);
     const avgCount = chance * (1 + chance * 0.35);
     const avgValue = Math.round(avgCount * type.value);
-    samplePreviewDataGain += avgValue;
     sampleProducedPreview.push({
       type,
       chance: chance,
       avgValue
     });
   });
-  dataGain += samplePreviewDataGain;
   let previewData = state.data + dataGain;
 
   const sampleDamagePreview = [];
