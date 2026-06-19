@@ -336,6 +336,61 @@
       <button id="endDayBtn" class="primary" type="button">结束今天</button>
     </section>
 
+    <section id="dayPreviewPanel" class="day-preview-panel hidden">
+      <div class="section-title">
+        <h2>📋 每日行动预览</h2>
+        <span class="day-preview-note">基于当前分配和队员排班的预估结算，不修改真实状态</span>
+      </div>
+      <div id="dayPreviewContent" class="day-preview-content">
+        <div class="day-preview-grid">
+          <div class="preview-item" data-key="fuel">
+            <span class="preview-label">⛽ 柴油</span>
+            <span class="preview-current" id="previewFuelCurrent">—</span>
+            <span class="preview-arrow">→</span>
+            <span class="preview-result" id="previewFuelResult">—</span>
+            <span class="preview-delta" id="previewFuelDelta"></span>
+          </div>
+          <div class="preview-item" data-key="morale">
+            <span class="preview-label">💪 士气</span>
+            <span class="preview-current" id="previewMoraleCurrent">—</span>
+            <span class="preview-arrow">→</span>
+            <span class="preview-result" id="previewMoraleResult">—</span>
+            <span class="preview-delta" id="previewMoraleDelta"></span>
+          </div>
+          <div class="preview-item" data-key="food">
+            <span class="preview-label">🍖 食物</span>
+            <span class="preview-current" id="previewFoodCurrent">—</span>
+            <span class="preview-arrow">→</span>
+            <span class="preview-result" id="previewFoodResult">—</span>
+            <span class="preview-delta" id="previewFoodDelta"></span>
+          </div>
+          <div class="preview-item" data-key="data">
+            <span class="preview-label">📊 科研成果</span>
+            <span class="preview-current" id="previewDataCurrent">—</span>
+            <span class="preview-arrow">→</span>
+            <span class="preview-result" id="previewDataResult">—</span>
+            <span class="preview-delta" id="previewDataDelta"></span>
+          </div>
+        </div>
+        <div class="day-preview-extras">
+          <div class="preview-extra-group">
+            <h4>样本完整度</h4>
+            <div id="previewSampleDetails" class="preview-sample-details"></div>
+          </div>
+          <div class="preview-extra-group">
+            <h4>设备耐久</h4>
+            <div id="previewEquipDetails" class="preview-equip-details"></div>
+          </div>
+          <div class="preview-extra-group">
+            <h4>通信链进度</h4>
+            <div id="previewCommDetails" class="preview-comm-details"></div>
+          </div>
+        </div>
+        <div id="previewWarnings" class="preview-warnings hidden"></div>
+        <div id="previewUncertainty" class="preview-uncertainty hidden"></div>
+      </div>
+    </section>
+
     <section class="lower">
       <section class="panel">
         <h2>预报与提示</h2>

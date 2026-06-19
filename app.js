@@ -48,6 +48,25 @@ const crewLabEl = document.getElementById("crewLab");
 const crewFoodEl = document.getElementById("crewFood");
 const crewRestEl = document.getElementById("crewRest");
 
+const dayPreviewPanelEl = document.getElementById("dayPreviewPanel");
+const previewFuelCurrent = document.getElementById("previewFuelCurrent");
+const previewFuelResult = document.getElementById("previewFuelResult");
+const previewFuelDelta = document.getElementById("previewFuelDelta");
+const previewMoraleCurrent = document.getElementById("previewMoraleCurrent");
+const previewMoraleResult = document.getElementById("previewMoraleResult");
+const previewMoraleDelta = document.getElementById("previewMoraleDelta");
+const previewFoodCurrent = document.getElementById("previewFoodCurrent");
+const previewFoodResult = document.getElementById("previewFoodResult");
+const previewFoodDelta = document.getElementById("previewFoodDelta");
+const previewDataCurrent = document.getElementById("previewDataCurrent");
+const previewDataResult = document.getElementById("previewDataResult");
+const previewDataDelta = document.getElementById("previewDataDelta");
+const previewSampleDetails = document.getElementById("previewSampleDetails");
+const previewEquipDetails = document.getElementById("previewEquipDetails");
+const previewCommDetails = document.getElementById("previewCommDetails");
+const previewWarnings = document.getElementById("previewWarnings");
+const previewUncertainty = document.getElementById("previewUncertainty");
+
 const workshopPanelEl = document.getElementById("workshopPanel");
 const equipmentCardsEl = document.getElementById("equipmentCards");
 
@@ -1475,6 +1494,7 @@ function start() {
   samplesPanelEl.classList.remove("hidden");
   commPanelEl.classList.remove("hidden");
   controlsPanelEl.classList.remove("hidden");
+  dayPreviewPanelEl.classList.remove("hidden");
   campaignProgressEl.classList.add("hidden");
   autoAssignCrew();
   render();
@@ -1633,6 +1653,7 @@ function startCampaignChapter(chapterIndex) {
   samplesPanelEl.classList.remove("hidden");
   commPanelEl.classList.remove("hidden");
   controlsPanelEl.classList.remove("hidden");
+  dayPreviewPanelEl.classList.remove("hidden");
   campaignProgressEl.classList.remove("hidden");
   autoAssignCrew();
   renderCampaignProgress();
@@ -2267,6 +2288,7 @@ function finishCampaignChapter(success) {
   samplesPanelEl.classList.add("hidden");
   commPanelEl.classList.add("hidden");
   controlsPanelEl.classList.add("hidden");
+  dayPreviewPanelEl.classList.add("hidden");
 
   const sampleStats = calculateSampleTotalValue();
 
@@ -2456,6 +2478,7 @@ function showCampaignEnding(lastChapterSuccess, allObjectivesMet) {
     samplesPanelEl.classList.add("hidden");
     commPanelEl.classList.add("hidden");
     controlsPanelEl.classList.add("hidden");
+    dayPreviewPanelEl.classList.add("hidden");
     campaignProgressEl.classList.add("hidden");
     renderMissionCards();
     startBtn.disabled = true;
@@ -2598,6 +2621,7 @@ function finish(success) {
   samplesPanelEl.classList.add("hidden");
   commPanelEl.classList.add("hidden");
   controlsPanelEl.classList.add("hidden");
+  dayPreviewPanelEl.classList.add("hidden");
   campaignProgressEl.classList.add("hidden");
   document.getElementById("returnBtn").addEventListener("click", () => {
     hideAllOverlays();
@@ -2613,6 +2637,7 @@ function finish(success) {
     samplesPanelEl.classList.add("hidden");
     commPanelEl.classList.add("hidden");
     controlsPanelEl.classList.add("hidden");
+    dayPreviewPanelEl.classList.add("hidden");
     campaignProgressEl.classList.add("hidden");
     renderMissionCards();
     startBtn.disabled = true;
@@ -2886,6 +2911,7 @@ function renderAllocationValues() {
   const left = state.weather.power - totalPower();
   powerLeftEl.textContent = left;
   powerLeftEl.style.color = left < 0 ? "#d14c3f" : "";
+  if (state.started) renderDayPreview();
 }
 
 function render() {
@@ -2985,6 +3011,7 @@ function render() {
     renderEquipmentWorkshop();
     renderSamples();
     renderCommChain();
+    renderDayPreview();
   }
   renderAllocationValues();
   renderLog();
@@ -4119,6 +4146,359 @@ function checkCustomLevelVictoryConditions() {
   if (state.mission.minMorale && state.morale < state.mission.minMorale) ok = false;
   if (state.mission.minFood && state.food < state.mission.minFood) ok = false;
   return ok;
+}
+
+function computeDayPreview() {
+  if (!state.started) return null;
+  const spent = totalPower();
+  if (spent > state.weather.power) return { overBudget: true };
+
+  const crewEffects = calculateCrewEffects();
+  const eqEffects = calculateEquipmentEffects();
+
+  let fuelCost = spent + (state.weather.name === "暴风雪" ? 4 : 2);
+  fuelCost = Math.max(1, fuelCost - crewEffects.fuelSave);
+  let previewFuel = state.fuel - fuelCost;
+
+  const effectiveHeatReq = Math.max(1, state.weather.heat + eqEffects.heatReqAdj);
+  const heatGap = Math.max(0, effectiveHeatReq - state.allocations.heat);
+  const commGap = Math.max(0, state.weather.comm - state.allocations.comm);
+  const commOk = state.allocations.comm >= state.weather.comm;
+
+  const baseMoraleLoss = heatGap * 9 + commGap * 5;
+  let previewMorale = state.morale - baseMoraleLoss;
+
+  if (state.mission.commMoraleBonus && commOk) {
+    previewMorale += 3;
+  }
+  previewMorale += crewEffects.moraleBoost;
+
+  let foodLoss = state.mission.foodReserve
+    ? Math.max(2, 6 - state.allocations.food)
+    : Math.max(3, 8 - state.allocations.food);
+  foodLoss = Math.max(1, foodLoss - crewEffects.foodSave);
+  foodLoss += eqEffects.foodLossAdj;
+  foodLoss = Math.max(1, foodLoss);
+  let previewFood = state.food - foodLoss;
+
+  let dataGain = 0;
+  let commDataGain = 0;
+  if (commOk) {
+    commDataGain = Math.round(2 * eqEffects.commEfficiency);
+    dataGain += commDataGain;
+  }
+  let missionCommBonus = 0;
+  if (state.mission.commBonus && commOk) {
+    missionCommBonus = Math.round(state.mission.commBonus * eqEffects.commEfficiency);
+    dataGain += missionCommBonus;
+  }
+  dataGain += crewEffects.dataBoost;
+
+  const labPower = state.allocations.lab;
+  const labEfficiency = eqEffects.labEfficiency;
+  const crewDataBoost = crewEffects.dataBoost;
+  let samplePreviewDataGain = 0;
+  const sampleProducedPreview = [];
+  sampleTypes.forEach((type) => {
+    const s = state.samples[type.id];
+    if (labPower < type.labPowerThreshold) return;
+    const baseChance = 0.25 + (labPower - type.labPowerThreshold) * 0.12;
+    const effMult = 0.8 + labEfficiency * 0.4;
+    const crewBonus = crewDataBoost > 0 ? 1.15 : 1.0;
+    const bonusMult = type.labPowerBonus !== undefined ? type.labPowerBonus : 1.0;
+    const chance = Math.min(0.95, baseChance * effMult * crewBonus * bonusMult);
+    const avgCount = chance * (1 + chance * 0.35);
+    const avgValue = Math.round(avgCount * type.value);
+    samplePreviewDataGain += avgValue;
+    sampleProducedPreview.push({
+      type,
+      chance: chance,
+      avgValue
+    });
+  });
+  dataGain += samplePreviewDataGain;
+  let previewData = state.data + dataGain;
+
+  previewFuel = Math.max(0, Math.min(100, Math.round(previewFuel)));
+  previewFood = Math.max(0, Math.min(100, Math.round(previewFood)));
+  previewMorale = Math.max(0, Math.min(100, Math.round(previewMorale)));
+  previewData = Math.max(0, Math.round(previewData));
+
+  const sampleDamagePreview = [];
+  sampleTypes.forEach((type) => {
+    const s = state.samples[type.id];
+    if (s.count <= 0) return;
+    const req = type.preserveReq;
+    let failedReqs = [];
+    let shortfallRatio = 0;
+    Object.keys(req).forEach((sysId) => {
+      const needed = req[sysId];
+      const have = state.allocations[sysId] || 0;
+      if (have < needed) {
+        failedReqs.push(sysId);
+        shortfallRatio += (needed - have) / needed;
+      }
+    });
+    if (failedReqs.length > 0) {
+      const baseLoss = type.lossWhenFail;
+      const weatherMult = state.weather.name === "暴风雪" ? 1.4 : state.weather.name === "低温" ? 1.2 : 1.0;
+      const avgLossPct = Math.min(85, baseLoss * shortfallRatio * weatherMult * 1.0);
+      const previewIntegrity = Math.max(0, Math.round(s.integrity - avgLossPct));
+      let avgLostCount = 0;
+      if (previewIntegrity <= 25 && s.count > 0) {
+        const lossProb = 1 - previewIntegrity / 100;
+        avgLostCount = lossProb * (1 + (100 - previewIntegrity) / 40);
+      }
+      sampleDamagePreview.push({
+        type,
+        integrityLost: Math.round(avgLossPct),
+        previewIntegrity,
+        avgLostCount: Math.round(avgLostCount * 10) / 10,
+        failedReqs,
+        severe: previewIntegrity <= 25 || avgLostCount >= 1
+      });
+    }
+  });
+
+  const equipDegradePreview = [];
+  const weatherMult = weatherDurMultiplier[state.weather.name] || 1.0;
+  equipmentDefs.forEach((def) => {
+    const eq = state.equipment[def.id];
+    let loss = def.baseDurLoss * weatherMult;
+    let lowPowerMult = 1.0;
+    if (def.id === "heat" && state.allocations.heat < state.weather.heat) lowPowerMult = 1.5;
+    if (def.id === "comm" && state.allocations.comm < state.weather.comm) lowPowerMult = 1.5;
+    if (def.id === "lab" && state.allocations.lab < 2) lowPowerMult = 1.4;
+    if (def.id === "food" && state.allocations.food < 2) lowPowerMult = 1.4;
+    loss *= lowPowerMult;
+    const previewDur = Math.max(0, Math.round(eq.durability - loss));
+    equipDegradePreview.push({
+      def,
+      currentDur: eq.durability,
+      previewDur,
+      loss: Math.round(loss),
+      level: eq.level,
+      critical: previewDur < 30
+    });
+  });
+
+  const commPreview = { advanced: false, interrupted: false, phaseName: null };
+  const curPhase = getCurrentPhase();
+  if (curPhase && !state.commChain.isComplete) {
+    commPreview.phaseName = curPhase.name;
+    const commEfficiency = eqEffects ? eqEffects.commEfficiency : 1.0;
+    const effectiveCommMin = Math.ceil(curPhase.commMin / Math.max(0.4, commEfficiency));
+    const isBlizzard = state.weather.name === "暴风雪";
+    if (isBlizzard) {
+      commPreview.interrupted = true;
+      const loss = Math.ceil(state.commChain.phaseProgress * COMM_INTERRUPT_PENALTY);
+      commPreview.progressAfter = Math.max(0, state.commChain.phaseProgress - loss);
+      commPreview.reason = "暴风雪将中断进度（不清零）";
+    } else if (!commOk || state.allocations.comm < effectiveCommMin) {
+      commPreview.interrupted = true;
+      const loss = Math.ceil(state.commChain.phaseProgress * COMM_INTERRUPT_PENALTY);
+      commPreview.progressAfter = Math.max(0, state.commChain.phaseProgress - loss);
+      commPreview.reason = !commOk ? "未达天气通信最低需求" : `通信格数未达阶段需求${effectiveCommMin}`;
+    } else {
+      commPreview.advanced = true;
+      commPreview.progressAfter = state.commChain.phaseProgress + 1;
+      if (commPreview.progressAfter >= curPhase.requiredDays) {
+        commPreview.phaseCompleted = true;
+      }
+    }
+    commPreview.requiredDays = curPhase.requiredDays;
+  }
+
+  const warnings = [];
+  if (previewFuel <= 0) warnings.push({ level: "critical", text: "柴油可能归零，任务将直接失败！" });
+  else if (previewFuel <= 10) warnings.push({ level: "danger", text: `柴油仅剩${previewFuel}，濒临归零` });
+  if (previewMorale <= 0) warnings.push({ level: "critical", text: "士气可能归零，任务将直接失败！" });
+  else if (previewMorale <= 15) warnings.push({ level: "danger", text: `士气仅剩${previewMorale}，濒临归零` });
+  if (previewFood <= 0) warnings.push({ level: "critical", text: "食物可能归零，任务将直接失败！" });
+  else if (previewFood <= 15) warnings.push({ level: "danger", text: `食物仅剩${previewFood}，濒临归零` });
+  sampleDamagePreview.forEach((d) => {
+    if (d.severe) {
+      warnings.push({ level: "danger", text: `${d.type.icon}${d.type.name}完整度可能降至${d.previewIntegrity}%，样本严重损坏风险！` });
+    } else if (d.integrityLost > 0) {
+      warnings.push({ level: "warning", text: `${d.type.icon}${d.type.name}完整度预估-${d.integrityLost}%` });
+    }
+  });
+  equipDegradePreview.forEach((e) => {
+    if (e.critical) {
+      warnings.push({ level: "danger", text: `${e.def.icon}${e.def.name}耐久将降至${e.previewDur}，设备严重老化！` });
+    }
+  });
+
+  const uncertainties = [];
+  const emergencyChance = getCustomEmergencyChance();
+  if (emergencyChance > 0) {
+    uncertainties.push(`突发事件概率${Math.round(emergencyChance * 100)}%，可能带来额外资源变动`);
+  }
+  if (state.nextDayEffects) {
+    if (state.nextDayEffects.powerPenalty) uncertainties.push(`次日电力将减少${state.nextDayEffects.powerPenalty}格`);
+    if (state.nextDayEffects.fuelRisk) uncertainties.push(`管路隐患：50%概率额外损失${state.nextDayEffects.fuelRisk}柴油`);
+  }
+  if (campaignState && campaignState.active) {
+    const chapter = getCampaignChapter();
+    if (chapter && chapter.branchEvents) {
+      const branch = chapter.branchEvents.find((b) => b.day === state.day && !campaignState.triggeredBranches.includes(b.id));
+      if (branch) {
+        uncertainties.push(`今日存在剧情分支「${branch.name}」，选择将影响后续走向`);
+      }
+    }
+  }
+  if (sampleProducedPreview.length > 0) {
+    uncertainties.push("样本产出有概率波动，实际结果可能偏离预览");
+  }
+  const randomEventChance = 1.0;
+  if (randomEventChance > 0) {
+    uncertainties.push("每日随机事件不可预测，可能带来±5~8点资源变动");
+  }
+
+  return {
+    overBudget: false,
+    fuel: { current: state.fuel, preview: previewFuel, delta: previewFuel - state.fuel },
+    morale: { current: state.morale, preview: previewMorale, delta: previewMorale - state.morale },
+    food: { current: state.food, preview: previewFood, delta: previewFood - state.food },
+    data: { current: state.data, preview: previewData, delta: previewData - state.data },
+    sampleProducedPreview,
+    sampleDamagePreview,
+    equipDegradePreview,
+    commPreview,
+    warnings,
+    uncertainties
+  };
+}
+
+function renderDayPreview() {
+  if (!state.started) {
+    dayPreviewPanelEl.classList.add("hidden");
+    return;
+  }
+  dayPreviewPanelEl.classList.remove("hidden");
+
+  const preview = computeDayPreview();
+  if (!preview || preview.overBudget) {
+    previewFuelCurrent.textContent = state.fuel;
+    previewFuelResult.textContent = "—";
+    previewFuelDelta.textContent = "电力超限";
+    previewFuelDelta.className = "preview-delta delta-danger";
+    previewMoraleCurrent.textContent = state.morale;
+    previewMoraleResult.textContent = "—";
+    previewMoraleDelta.textContent = "";
+    previewFoodCurrent.textContent = state.food;
+    previewFoodResult.textContent = "—";
+    previewFoodDelta.textContent = "";
+    previewDataCurrent.textContent = state.data;
+    previewDataResult.textContent = "—";
+    previewDataDelta.textContent = "";
+    previewSampleDetails.innerHTML = '<span class="preview-hint">请先调整电力分配至可用范围内</span>';
+    previewEquipDetails.innerHTML = "";
+    previewCommDetails.innerHTML = "";
+    previewWarnings.classList.add("hidden");
+    previewUncertainty.classList.add("hidden");
+    return;
+  }
+
+  function setPreviewItem(currentEl, resultEl, deltaEl, current, preview, key) {
+    currentEl.textContent = current;
+    resultEl.textContent = preview;
+    const delta = preview - current;
+    const sign = delta >= 0 ? "+" : "";
+    deltaEl.textContent = delta !== 0 ? `${sign}${delta}` : "—";
+    if (preview <= 0) {
+      resultEl.className = "preview-result result-zero";
+      deltaEl.className = "preview-delta delta-danger";
+    } else if (delta < -10) {
+      resultEl.className = "preview-result result-bad";
+      deltaEl.className = "preview-delta delta-danger";
+    } else if (delta < 0) {
+      resultEl.className = "preview-result result-slight";
+      deltaEl.className = "preview-delta delta-slight";
+    } else if (delta > 0) {
+      resultEl.className = "preview-result result-good";
+      deltaEl.className = "preview-delta delta-good";
+    } else {
+      resultEl.className = "preview-result";
+      deltaEl.className = "preview-delta";
+    }
+  }
+
+  setPreviewItem(previewFuelCurrent, previewFuelResult, previewFuelDelta, preview.fuel.current, preview.fuel.preview, "fuel");
+  setPreviewItem(previewMoraleCurrent, previewMoraleResult, previewMoraleDelta, preview.morale.current, preview.morale.preview, "morale");
+  setPreviewItem(previewFoodCurrent, previewFoodResult, previewFoodDelta, preview.food.current, preview.food.preview, "food");
+  setPreviewItem(previewDataCurrent, previewDataResult, previewDataDelta, preview.data.current, preview.data.preview, "data");
+
+  let sampleHtml = "";
+  if (preview.sampleProducedPreview.length > 0 || preview.sampleDamagePreview.length > 0) {
+    if (preview.sampleProducedPreview.length > 0) {
+      sampleHtml += '<div class="preview-sample-row preview-sample-produce">';
+      preview.sampleProducedPreview.forEach((sp) => {
+        sampleHtml += `<span class="preview-sample-chip">${sp.type.icon}${sp.type.name} ${Math.round(sp.chance * 100)}%概率 ≈+${sp.avgValue}</span>`;
+      });
+      sampleHtml += '</div>';
+    }
+    if (preview.sampleDamagePreview.length > 0) {
+      sampleHtml += '<div class="preview-sample-row preview-sample-damage">';
+      preview.sampleDamagePreview.forEach((d) => {
+        const cls = d.severe ? "preview-sample-chip chip-danger" : "preview-sample-chip chip-warn";
+        const reqNames = d.failedReqs.map((r) => {
+          const map = { heat: '供暖', comm: '通信', lab: '实验', food: '冷藏' };
+          return map[r] || r;
+        }).join("+");
+        sampleHtml += `<span class="${cls}">${d.type.icon}${d.type.name} 完整度${state.samples[d.type.id].integrity}→${d.previewIntegrity}%${d.avgLostCount >= 1 ? '，损毁≈' + d.avgLostCount + '份' : ''}【${reqNames}不足】</span>`;
+      });
+      sampleHtml += '</div>';
+    }
+  } else {
+    sampleHtml = '<span class="preview-hint">当前分配下样本无产出也无损坏风险</span>';
+  }
+  previewSampleDetails.innerHTML = sampleHtml;
+
+  let equipHtml = "";
+  preview.equipDegradePreview.forEach((e) => {
+    const cls = e.critical ? "preview-equip-chip chip-danger" : e.loss > 0 ? "preview-equip-chip" : "preview-equip-chip chip-ok";
+    equipHtml += `<span class="${cls}">${e.def.icon}${e.def.name} ${e.currentDur}→${e.previewDur}(-${e.loss})</span>`;
+  });
+  previewEquipDetails.innerHTML = equipHtml || '<span class="preview-hint">设备正常</span>';
+
+  let commHtml = "";
+  const cp = preview.commPreview;
+  if (state.commChain.isComplete) {
+    commHtml = '<span class="preview-hint">通信链已完成 ✅</span>';
+  } else if (cp.phaseName) {
+    if (cp.advanced) {
+      if (cp.phaseCompleted) {
+        commHtml = `<span class="preview-comm-chip chip-good">📡「${cp.phaseName}」阶段完成！进度 ${cp.progressAfter}/${cp.requiredDays}</span>`;
+      } else {
+        commHtml = `<span class="preview-comm-chip chip-ok">📡「${cp.phaseName}」推进中 ${cp.progressAfter}/${cp.requiredDays}</span>`;
+      }
+    } else {
+      commHtml = `<span class="preview-comm-chip chip-warn">📡「${cp.phaseName}」${cp.reason}，进度${cp.progressAfter}/${cp.requiredDays}</span>`;
+    }
+  } else {
+    commHtml = '<span class="preview-hint">通信链未激活</span>';
+  }
+  previewCommDetails.innerHTML = commHtml;
+
+  if (preview.warnings.length > 0) {
+    previewWarnings.classList.remove("hidden");
+    previewWarnings.innerHTML = preview.warnings.map((w) => {
+      const cls = w.level === "critical" ? "warning-critical" : w.level === "danger" ? "warning-danger" : "warning-warn";
+      return `<div class="preview-warning ${cls}">${w.text}</div>`;
+    }).join("");
+  } else {
+    previewWarnings.classList.add("hidden");
+  }
+
+  if (preview.uncertainties.length > 0) {
+    previewUncertainty.classList.remove("hidden");
+    previewUncertainty.innerHTML = preview.uncertainties.map((u) => {
+      return `<div class="preview-uncertainty-item">⚠ ${u}</div>`;
+    }).join("");
+  } else {
+    previewUncertainty.classList.add("hidden");
+  }
 }
 
 init();

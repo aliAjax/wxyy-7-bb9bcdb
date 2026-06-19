@@ -2951,3 +2951,288 @@ h2 {
     grid-template-columns: 1fr;
   }
 }
+
+.day-preview-panel {
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid #8fa9ae;
+  border-radius: 8px;
+  background: #f6fbfb;
+}
+
+.day-preview-note {
+  font-size: 12px;
+  color: #63868c;
+  font-weight: 400;
+}
+
+.day-preview-content {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.day-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.preview-item {
+  padding: 12px;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid #c5d7da;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+}
+
+.preview-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #3e5f65;
+}
+
+.preview-current {
+  font-size: 16px;
+  font-weight: 600;
+  color: #63868c;
+}
+
+.preview-arrow {
+  font-size: 12px;
+  color: #8fa9ae;
+}
+
+.preview-result {
+  font-size: 22px;
+  font-weight: 700;
+  color: #13272b;
+  line-height: 1.1;
+}
+
+.preview-result.result-zero {
+  color: #d14c3f;
+  animation: preview-pulse 1.2s ease-in-out infinite;
+}
+
+.preview-result.result-bad {
+  color: #d14c3f;
+}
+
+.preview-result.result-slight {
+  color: #d18b3f;
+}
+
+.preview-result.result-good {
+  color: #4f8a5b;
+}
+
+@keyframes preview-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.preview-delta {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.preview-delta.delta-danger {
+  color: #d14c3f;
+}
+
+.preview-delta.delta-slight {
+  color: #d18b3f;
+}
+
+.preview-delta.delta-good {
+  color: #4f8a5b;
+}
+
+.day-preview-extras {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.preview-extra-group {
+  padding: 12px;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid #c5d7da;
+}
+
+.preview-extra-group h4 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: #29464d;
+  padding-bottom: 6px;
+  border-bottom: 1px dashed #d6e6e8;
+}
+
+.preview-sample-details,
+.preview-equip-details,
+.preview-comm-details {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.preview-sample-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.preview-sample-chip {
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  background: #e8f1f2;
+  color: #3e5f65;
+  line-height: 1.4;
+}
+
+.preview-sample-chip.chip-danger {
+  background: #fdecea;
+  color: #8e2b22;
+  border: 1px solid #f5c6c0;
+}
+
+.preview-sample-chip.chip-warn {
+  background: #fff8ee;
+  color: #8e5a1a;
+  border: 1px solid #f0d890;
+}
+
+.preview-equip-chip {
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  background: #e8f1f2;
+  color: #3e5f65;
+}
+
+.preview-equip-chip.chip-danger {
+  background: #fdecea;
+  color: #8e2b22;
+}
+
+.preview-equip-chip.chip-ok {
+  background: #eef7f0;
+  color: #2e6b3c;
+}
+
+.preview-comm-chip {
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  background: #e8f1f2;
+  color: #3e5f65;
+}
+
+.preview-comm-chip.chip-good {
+  background: #eef7f0;
+  color: #2e6b3c;
+}
+
+.preview-comm-chip.chip-ok {
+  background: #eaf4f7;
+  color: #357a90;
+}
+
+.preview-comm-chip.chip-warn {
+  background: #fff8ee;
+  color: #8e5a1a;
+}
+
+.preview-hint {
+  font-size: 11px;
+  color: #8fa9ae;
+  font-style: italic;
+}
+
+.preview-warnings {
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: #fdecea;
+  border: 1px solid #f5c6c0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.preview-warning {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.preview-warning.warning-critical {
+  color: #8e2b22;
+  font-size: 14px;
+}
+
+.preview-warning.warning-critical::before {
+  content: "🚨 ";
+}
+
+.preview-warning.warning-danger {
+  color: #c53020;
+}
+
+.preview-warning.warning-danger::before {
+  content: "⚠️ ";
+}
+
+.preview-warning.warning-warn {
+  color: #8e5a1a;
+  font-weight: 600;
+}
+
+.preview-warning.warning-warn::before {
+  content: "⚡ ";
+}
+
+.preview-uncertainty {
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: #f0f4f8;
+  border: 1px dashed #8fa9ae;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.preview-uncertainty-item {
+  font-size: 12px;
+  color: #3e5f65;
+  line-height: 1.5;
+}
+
+@media (max-width: 900px) {
+  .day-preview-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .day-preview-extras {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .day-preview-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .preview-item {
+    padding: 8px;
+  }
+  .preview-result {
+    font-size: 18px;
+  }
+}
