@@ -32,7 +32,46 @@
         </div>
         <button id="toggleEditorBtn" type="button" class="editor-toggle-btn">⚙ 关卡编辑器</button>
       </div>
+
+      <div class="mission-filter-bar">
+        <div class="filter-group">
+          <span class="filter-label">🏷 标签</span>
+          <div id="filterTags" class="filter-tags"></div>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">📅 天数</span>
+          <div id="filterDays" class="filter-options">
+            <button type="button" class="filter-chip" data-days="all">全部</button>
+            <button type="button" class="filter-chip" data-days="short">短期(≤5天)</button>
+            <button type="button" class="filter-chip" data-days="medium">中期(6-10天)</button>
+            <button type="button" class="filter-chip" data-days="long">长期(≥11天)</button>
+          </div>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">🎯 科研目标</span>
+          <div id="filterGoal" class="filter-options">
+            <button type="button" class="filter-chip" data-goal="all">全部</button>
+            <button type="button" class="filter-chip" data-goal="low">较低(≤100)</button>
+            <button type="button" class="filter-chip" data-goal="medium">中等(101-200)</button>
+            <button type="button" class="filter-chip" data-goal="high">较高(≥201)</button>
+          </div>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">📊 排序</span>
+          <div id="sortOptions" class="filter-options">
+            <button type="button" class="filter-chip active" data-sort="default">默认</button>
+            <button type="button" class="filter-chip" data-sort="difficultyAsc">难度从低到高</button>
+            <button type="button" class="filter-chip" data-sort="difficultyDesc">难度从高到低</button>
+          </div>
+        </div>
+        <button id="resetFilterBtn" type="button" class="filter-reset-btn">🔄 重置</button>
+      </div>
+
       <div id="missionCards" class="mission-cards"></div>
+      <div id="missionEmpty" class="mission-empty hidden">
+        <p>🔍 没有找到符合筛选条件的关卡</p>
+        <span>试试调整筛选条件，或查看全部关卡</span>
+      </div>
       <div class="mission-action">
         <button id="startBtn" type="button" disabled>确认任务并进入电力分配</button>
       </div>

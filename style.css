@@ -275,6 +275,117 @@ h2 {
   line-height: 1.6;
 }
 
+.mission-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 18px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  background: #f0f7f8;
+  border-radius: 10px;
+  border: 1px solid #d6e6e8;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-width: 180px;
+}
+
+.filter-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #29464d;
+  letter-spacing: 0.3px;
+}
+
+.filter-tags,
+.filter-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.filter-chip {
+  padding: 5px 11px;
+  border: 1.5px solid #c5d7da;
+  border-radius: 999px;
+  background: #fff;
+  color: #3e5f65;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1.4;
+}
+
+.filter-chip:hover {
+  border-color: #357a90;
+  color: #357a90;
+  background: #eaf4f7;
+}
+
+.filter-chip.active {
+  border-color: #357a90;
+  background: #357a90;
+  color: #fff;
+}
+
+.filter-chip.tag-chip {
+  border-color: transparent;
+  background: #e0ebeb;
+}
+
+.filter-chip.tag-chip:hover {
+  background: #cfe0e0;
+}
+
+.filter-chip.tag-chip.active {
+  background: #29464d;
+  color: #fff;
+}
+
+.filter-reset-btn {
+  align-self: flex-end;
+  padding: 7px 14px;
+  border: 1.5px solid #c5d7da;
+  border-radius: 8px;
+  background: #fff;
+  color: #3e5f65;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.filter-reset-btn:hover {
+  border-color: #d14c3f;
+  color: #d14c3f;
+  background: #fdf2f0;
+}
+
+.mission-empty {
+  text-align: center;
+  padding: 48px 20px;
+  color: #7a9ba0;
+  background: #f0f7f8;
+  border-radius: 10px;
+  border: 2px dashed #c5d7da;
+}
+
+.mission-empty p {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #3e5f65;
+}
+
+.mission-empty span {
+  font-size: 13px;
+}
+
 .mission-cards {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -370,6 +481,66 @@ h2 {
   font-size: 13px;
   font-weight: 700;
   text-align: center;
+}
+
+.mission-difficulty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: #e8f1f2;
+  font-size: 12px;
+}
+
+.mission-difficulty .diff-label {
+  color: #3e5f65;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.mission-difficulty .diff-bar {
+  flex: 1;
+  height: 6px;
+  background: #d6e6e8;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.mission-difficulty .diff-fill {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: #6ab07b;
+  transition: width 0.3s ease;
+}
+
+.mission-difficulty.diff-medium .diff-fill {
+  background: #e8a94a;
+}
+
+.mission-difficulty.diff-hard .diff-fill {
+  background: #d14c3f;
+}
+
+.mission-difficulty .diff-text {
+  font-weight: 700;
+  color: #3e5f65;
+  flex-shrink: 0;
+  min-width: 28px;
+  text-align: right;
+}
+
+.mission-difficulty.diff-easy .diff-text {
+  color: #3d7d4e;
+}
+
+.mission-difficulty.diff-medium .diff-text {
+  color: #b57f26;
+}
+
+.mission-difficulty.diff-hard .diff-text {
+  color: #d14c3f;
 }
 
 .mission-action {
@@ -1226,6 +1397,12 @@ h2 {
   .mission-cards {
     grid-template-columns: repeat(2, 1fr);
   }
+  .mission-filter-bar {
+    gap: 12px;
+  }
+  .filter-group {
+    min-width: 140px;
+  }
   .hero,
   .dashboard,
   .lower {
@@ -1256,6 +1433,19 @@ h2 {
   }
   .equipment-cards {
     grid-template-columns: 1fr;
+  }
+  .mission-cards {
+    grid-template-columns: 1fr;
+  }
+  .mission-filter-bar {
+    padding: 10px 12px;
+    gap: 10px;
+  }
+  .filter-group {
+    min-width: 100%;
+  }
+  .filter-reset-btn {
+    align-self: stretch;
   }
 }
 

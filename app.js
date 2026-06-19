@@ -13,6 +13,12 @@ const foodEl = document.getElementById("food");
 const dataEl = document.getElementById("data");
 const powerLeftEl = document.getElementById("powerLeft");
 const missionCardsEl = document.getElementById("missionCards");
+const missionEmptyEl = document.getElementById("missionEmpty");
+const filterTagsEl = document.getElementById("filterTags");
+const filterDaysEl = document.getElementById("filterDays");
+const filterGoalEl = document.getElementById("filterGoal");
+const sortOptionsEl = document.getElementById("sortOptions");
+const resetFilterBtn = document.getElementById("resetFilterBtn");
 const missionDeskEl = document.getElementById("missionDesk");
 const controlsPanelEl = document.getElementById("controlsPanel");
 const clearArchiveBtn = document.getElementById("clearArchiveBtn");
@@ -103,6 +109,13 @@ const ARCHIVE_LIMIT = 20;
 const TUTORIAL_KEY = "polar_station_tutorial_done";
 const CUSTOM_LEVELS_KEY = "polar_station_custom_levels";
 const CUSTOM_LEVEL_ID_PREFIX = "custom_";
+
+const filterState = {
+  tags: [],
+  days: "all",
+  goal: "all",
+  sort: "default"
+};
 
 const toggleEditorBtn = document.getElementById("toggleEditorBtn");
 const closeEditorBtn = document.getElementById("closeEditorBtn");
@@ -1077,6 +1090,8 @@ function init() {
   clearArchiveBtn.addEventListener("click", clearArchive);
   initTutorialEvents();
   initEditorEvents();
+  initFilterEvents();
+  renderFilterTags();
   renderMissionCards();
   renderSavedLevels();
   renderAllocations();
@@ -1084,13 +1099,159 @@ function init() {
   render();
 }
 
+function getMissionDifficultyScore(mission) {
+  if (!mission.days) return 0;
+  const daysScore = mission.days * 2;
+  const goalScore = mission.dataGoal ? mission.dataGoal / 10 : 0;
+  const fuelPenalty = Math.max(0, 80 - (mission.initial?.fuel ?? 80));
+  const foodPenalty = Math.max(0, 70 - (mission.initial?.food ?? 70));
+  const moralePenalty = Math.max(0, 75 - (mission.initial?.morale ?? 75));
+  const resourcePenalty = (fuelPenalty + foodPenalty + moralePenalty) * 0.5;
+  let extraReqsPenalty = 0;
+  if (mission.minFuel) extraReqsPenalty += mission.minFuel * 0.3;
+  if (mission.minFood) extraReqsPenalty += mission.minFood * 0.3;
+  if (mission.minMorale) extraReqsPenalty += mission.minMorale * 0.2;
+  return Math.round(daysScore + goalScore + resourcePenalty + extraReqsPenalty);
+}
+
+function getUniqueTags() {
+  const tags = new Set();
+  tags.add("剧情战役");
+  getAllMissions().forEach((m) => {
+    if (m.tag) tags.add(m.tag);
+  });
+  return Array.from(tags);
+}
+
+function filterMissions(missions) {
+  return missions.filter((mission) => {
+    if (filterState.tags.length > 0 && mission.tag) {
+      if (!filterState.tags.includes(mission.tag)) return false;
+    }
+    if (filterState.days !== "all" && mission.days) {
+      if (filterState.days === "short" && mission.days > 5) return false;
+      if (filterState.days === "medium" && (mission.days < 6 || mission.days > 10)) return false;
+      if (filterState.days === "long" && mission.days < 11) return false;
+    }
+    if (filterState.goal !== "all") {
+      const goal = mission.dataGoal || 0;
+      if (filterState.goal === "low" && goal > 100) return false;
+      if (filterState.goal === "medium" && (goal < 101 || goal > 200)) return false;
+      if (filterState.goal === "high" && goal < 201) return false;
+    }
+    return true;
+  });
+}
+
+function sortMissions(missions) {
+  const sorted = [...missions];
+  if (filterState.sort === "difficultyAsc") {
+    sorted.sort((a, b) => getMissionDifficultyScore(a) - getMissionDifficultyScore(b));
+  } else if (filterState.sort === "difficultyDesc") {
+    sorted.sort((a, b) => getMissionDifficultyScore(b) - getMissionDifficultyScore(a));
+  }
+  return sorted;
+}
+
+function renderFilterTags() {
+  const tags = getUniqueTags();
+  filterTagsEl.innerHTML = "";
+  tags.forEach((tag) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = `filter-chip tag-chip ${filterState.tags.includes(tag) ? "active" : ""}`;
+    btn.dataset.tag = tag;
+    btn.textContent = tag;
+    btn.addEventListener("click", () => toggleTagFilter(tag));
+    filterTagsEl.appendChild(btn);
+  });
+}
+
+function toggleTagFilter(tag) {
+  const idx = filterState.tags.indexOf(tag);
+  if (idx > -1) {
+    filterState.tags.splice(idx, 1);
+  } else {
+    filterState.tags.push(tag);
+  }
+  renderFilterTags();
+  renderMissionCards();
+}
+
+function updateDayFilter(value) {
+  filterState.days = value;
+  filterDaysEl.querySelectorAll(".filter-chip").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.days === value);
+  });
+  renderMissionCards();
+}
+
+function updateGoalFilter(value) {
+  filterState.goal = value;
+  filterGoalEl.querySelectorAll(".filter-chip").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.goal === value);
+  });
+  renderMissionCards();
+}
+
+function updateSort(value) {
+  filterState.sort = value;
+  sortOptionsEl.querySelectorAll(".filter-chip").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.sort === value);
+  });
+  renderMissionCards();
+}
+
+function resetFilters() {
+  filterState.tags = [];
+  filterState.days = "all";
+  filterState.goal = "all";
+  filterState.sort = "default";
+  renderFilterTags();
+  filterDaysEl.querySelectorAll(".filter-chip").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.days === "all");
+  });
+  filterGoalEl.querySelectorAll(".filter-chip").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.goal === "all");
+  });
+  sortOptionsEl.querySelectorAll(".filter-chip").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.sort === "default");
+  });
+  renderMissionCards();
+}
+
+function initFilterEvents() {
+  filterDaysEl.querySelectorAll(".filter-chip").forEach((btn) => {
+    btn.addEventListener("click", () => updateDayFilter(btn.dataset.days));
+  });
+  filterGoalEl.querySelectorAll(".filter-chip").forEach((btn) => {
+    btn.addEventListener("click", () => updateGoalFilter(btn.dataset.goal));
+  });
+  sortOptionsEl.querySelectorAll(".filter-chip").forEach((btn) => {
+    btn.addEventListener("click", () => updateSort(btn.dataset.sort));
+  });
+  resetFilterBtn.addEventListener("click", resetFilters);
+}
+
 function renderMissionCards() {
   missionCardsEl.innerHTML = "";
 
-  const campaignCard = document.createElement("div");
-  campaignCard.className = "mission-card campaign-card";
-  campaignCard.dataset.missionId = "campaign";
-  campaignCard.innerHTML = `
+  const campaignMission = {
+    id: "campaign",
+    tag: "剧情战役",
+    name: "极夜征途",
+    days: 14,
+    dataGoal: 80,
+    initial: { fuel: 85, morale: 80, food: 75 }
+  };
+
+  const campaignPassesFilter = filterMissions([campaignMission]).length > 0;
+
+  if (campaignPassesFilter) {
+    const campaignCard = document.createElement("div");
+    campaignCard.className = `mission-card campaign-card ${state.selectedMissionId === "campaign" ? "selected" : ""}`;
+    campaignCard.dataset.missionId = "campaign";
+    campaignCard.innerHTML = `
     <div class="mission-card-head" style="background:linear-gradient(135deg,#13272b 0%,#357a90 100%)">
       <span class="mission-tag">剧情战役</span>
       <h3>极夜征途</h3>
@@ -1108,13 +1269,17 @@ function renderMissionCards() {
       </div>
     </div>
   `;
-  campaignCard.addEventListener("click", () => selectMission("campaign"));
-  missionCardsEl.appendChild(campaignCard);
+    campaignCard.addEventListener("click", () => selectMission("campaign"));
+    missionCardsEl.appendChild(campaignCard);
+  }
 
-  const allMissions = getAllMissions();
+  let allMissions = getAllMissions();
+  allMissions = filterMissions(allMissions);
+  allMissions = sortMissions(allMissions);
+
   allMissions.forEach((mission) => {
     const card = document.createElement("div");
-    card.className = `mission-card ${mission.isCustom ? "custom-card" : ""}`;
+    card.className = `mission-card ${mission.isCustom ? "custom-card" : ""} ${state.selectedMissionId === mission.id ? "selected" : ""}`;
     card.dataset.missionId = mission.id;
     const goalText = mission.dataGoal
       ? `科研成果（数据+样本价值）≥ ${mission.dataGoal}`
@@ -1126,6 +1291,9 @@ function renderMissionCards() {
       if (mission.minFood) extraReqs.push(`食物≥${mission.minFood}`);
     }
     const goalFull = extraReqs.length > 0 ? `${goalText}；${extraReqs.join("，")}` : goalText;
+    const diffScore = getMissionDifficultyScore(mission);
+    const diffLabel = diffScore < 25 ? "简单" : diffScore < 45 ? "中等" : "困难";
+    const diffClass = diffScore < 25 ? "diff-easy" : diffScore < 45 ? "diff-medium" : "diff-hard";
     card.innerHTML = `
       <div class="mission-card-head" style="background:${mission.color}">
         <span class="mission-tag">${mission.tag}</span>
@@ -1142,6 +1310,11 @@ function renderMissionCards() {
         <div class="mission-goal">
           目标：${goalFull}
         </div>
+        <div class="mission-difficulty ${diffClass}">
+          <span class="diff-label">难度</span>
+          <span class="diff-bar"><span class="diff-fill"></span></span>
+          <span class="diff-text">${diffLabel}</span>
+        </div>
         ${mission.isCustom ? `
           <div class="mission-card-actions">
             <button type="button" class="mission-card-edit-btn" data-action="edit" data-id="${mission.id}">✏ 编辑</button>
@@ -1150,6 +1323,10 @@ function renderMissionCards() {
         ` : ""}
       </div>
     `;
+    const fill = card.querySelector(".diff-fill");
+    if (fill) {
+      fill.style.width = Math.min(100, diffScore * 2) + "%";
+    }
     card.addEventListener("click", (e) => {
       const action = e.target.dataset.action;
       const id = e.target.dataset.id;
@@ -1165,6 +1342,15 @@ function renderMissionCards() {
     });
     missionCardsEl.appendChild(card);
   });
+
+  const hasCards = missionCardsEl.children.length > 0;
+  if (hasCards) {
+    missionCardsEl.classList.remove("hidden");
+    missionEmptyEl.classList.add("hidden");
+  } else {
+    missionCardsEl.classList.add("hidden");
+    missionEmptyEl.classList.remove("hidden");
+  }
 }
 
 function selectMission(missionId) {
@@ -3673,6 +3859,7 @@ function deleteLevel(id) {
   }
 
   renderSavedLevels();
+  renderFilterTags();
   renderMissionCards();
 }
 
@@ -3699,6 +3886,7 @@ function saveEditorLevel() {
 
   saveCustomLevels(saveLevels);
   renderSavedLevels();
+  renderFilterTags();
   renderMissionCards();
 
   editorValidation.classList.remove("hidden");
