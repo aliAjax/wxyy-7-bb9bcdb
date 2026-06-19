@@ -19,8 +19,21 @@ const clearArchiveBtn = document.getElementById("clearArchiveBtn");
 const archiveEmptyEl = document.getElementById("archiveEmpty");
 const archiveListEl = document.getElementById("archiveList");
 
+const tutorialOverlay = document.getElementById("tutorialOverlay");
+const tutorialHighlight = document.getElementById("tutorialHighlight");
+const tutorialCard = document.getElementById("tutorialCard");
+const tutorialTitle = document.getElementById("tutorialTitle");
+const tutorialDesc = document.getElementById("tutorialDesc");
+const tutorialStepNum = document.getElementById("tutorialStepNum");
+const tutorialStepTotal = document.getElementById("tutorialStepTotal");
+const tutorialSystems = document.getElementById("tutorialSystems");
+const tutorialSkipBtn = document.getElementById("tutorialSkipBtn");
+const tutorialPrevBtn = document.getElementById("tutorialPrevBtn");
+const tutorialNextBtn = document.getElementById("tutorialNextBtn");
+
 const ARCHIVE_KEY = "polar_station_archive";
 const ARCHIVE_LIMIT = 20;
+const TUTORIAL_KEY = "polar_station_tutorial_done";
 
 const systems = [
   { id: "heat", name: "供暖", hint: "低于3会冻伤士气" },
@@ -119,6 +132,212 @@ const missions = [
 ];
 
 let state;
+let tutorialActive = false;
+let tutorialCurrentStep = 0;
+
+const tutorialSteps = [
+  {
+    title: "第一步：看懂今日天气需求",
+    desc: "每天会随机出现不同天气，决定你需要应对的最低供暖格数、最低通信格数，以及当日可分配的电力上限。\n\n比如「暴风雪」天，供暖至少要5格，通信至少要3格，可用电力会被压缩到10。未达最低要求会扣士气，务必优先保证。",
+    targetSelector: ".station",
+    cardPosition: "below",
+    showSystems: false
+  },
+  {
+    title: "第二步：为四个系统分配电力",
+    desc: "拖动下方四个滑块分配当天有限的电力。总和不得超过天气给出的可用电力（超出时会报错无法结束当天）。",
+    targetSelector: "#controlsPanel",
+    cardPosition: "above",
+    showSystems: true
+  },
+  {
+    title: "第三步：结束今天，观察资源变化",
+    desc: "点击「结束今天」后，系统按你分配的电力结算：\n• 未满足供暖/通信最低要求 → 扣士气\n• 电力总和 + 天气附加 → 消耗柴油\n• 食物储藏电力不足 → 食物加速损耗\n• 实验室电力 + 通信在线奖励 → 增加数据\n\n然后进入下一天，直到任务结束或某项资源归零失败。",
+    targetSelector: ".dashboard",
+    cardPosition: "below",
+    showSystems: false
+  }
+];
+
+const systemColors = {
+  heat: { bg: "#c85f46", name: "供暖", note: "低于天气要求 → 士气大降" },
+  comm: { bg: "#357a90", name: "通信", note: "在线奖励：额外观测数据" },
+  lab: { bg: "#6267a6", name: "实验", note: "电力越高 → 数据产出越多" },
+  food: { bg: "#4f8a5b", name: "食物储藏", note: "电力不足 → 食物损耗翻倍" }
+};
+
+function isTutorialDone() {
+  try {
+    return localStorage.getItem(TUTORIAL_KEY) === "1";
+  } catch (e) {
+    return false;
+  }
+}
+
+function markTutorialDone() {
+  try {
+    localStorage.setItem(TUTORIAL_KEY, "1");
+  } catch (e) {}
+}
+
+function showTutorialStep(stepIndex) {
+  if (stepIndex < 0 || stepIndex >= tutorialSteps.length) return;
+  const step = tutorialSteps[stepIndex];
+
+  tutorialStepNum.textContent = stepIndex + 1;
+  tutorialStepTotal.textContent = tutorialSteps.length;
+  tutorialTitle.textContent = step.title;
+  tutorialDesc.textContent = step.desc;
+
+  if (step.showSystems) {
+    tutorialSystems.innerHTML = "";
+    Object.keys(systemColors).forEach((key) => {
+      const sys = systemColors[key];
+      const item = document.createElement("div");
+      item.className = "tutorial-sys-item";
+      item.style.background = sys.bg;
+      item.innerHTML = `${sys.name}<small>${sys.note}</small>`;
+      tutorialSystems.appendChild(item);
+    });
+    tutorialSystems.classList.remove("hidden");
+  } else {
+    tutorialSystems.classList.add("hidden");
+  }
+
+  tutorialPrevBtn.disabled = stepIndex === 0;
+  tutorialNextBtn.textContent = stepIndex === tutorialSteps.length - 1 ? "完成引导" : "下一步";
+
+  const target = document.querySelector(step.targetSelector);
+  if (target && target.offsetParent !== null) {
+    positionHighlight(target);
+    positionCard(step.cardPosition, target);
+  } else {
+    tutorialHighlight.style.display = "none";
+    positionCardCenter();
+  }
+}
+
+function positionHighlight(target) {
+  const rect = target.getBoundingClientRect();
+  const padding = 6;
+  tutorialHighlight.style.display = "block";
+  tutorialHighlight.style.left = rect.left - padding + "px";
+  tutorialHighlight.style.top = rect.top - padding + "px";
+  tutorialHighlight.style.width = rect.width + padding * 2 + "px";
+  tutorialHighlight.style.height = rect.height + padding * 2 + "px";
+}
+
+function positionCard(position, target) {
+  const rect = target.getBoundingClientRect();
+  const cardWidth = Math.min(420, window.innerWidth - 32);
+  tutorialCard.style.width = cardWidth + "px";
+  const cardHeight = 280;
+  const gap = 16;
+
+  let left, top;
+
+  if (window.innerWidth <= 900) {
+    tutorialCard.style.left = "16px";
+    tutorialCard.style.right = "16px";
+    tutorialCard.style.bottom = "16px";
+    tutorialCard.style.top = "auto";
+    tutorialCard.style.transform = "none";
+    return;
+  }
+
+  tutorialCard.style.right = "auto";
+  tutorialCard.style.bottom = "auto";
+
+  if (position === "below") {
+    top = rect.bottom + gap;
+    if (top + cardHeight > window.innerHeight - 16) {
+      top = Math.max(16, rect.top - cardHeight - gap);
+    }
+  } else if (position === "above") {
+    top = rect.top - cardHeight - gap;
+    if (top < 16) {
+      top = Math.min(window.innerHeight - cardHeight - 16, rect.bottom + gap);
+    }
+  } else {
+    top = 16;
+  }
+
+  left = rect.left + rect.width / 2 - cardWidth / 2;
+  left = Math.max(16, Math.min(window.innerWidth - cardWidth - 16, left));
+
+  tutorialCard.style.left = left + "px";
+  tutorialCard.style.top = top + "px";
+  tutorialCard.style.transform = "none";
+}
+
+function positionCardCenter() {
+  const cardWidth = Math.min(420, window.innerWidth - 32);
+  tutorialCard.style.width = cardWidth + "px";
+  tutorialCard.style.left = "50%";
+  tutorialCard.style.top = "50%";
+  tutorialCard.style.right = "auto";
+  tutorialCard.style.bottom = "auto";
+  tutorialCard.style.transform = "translate(-50%, -50%)";
+}
+
+function startTutorial() {
+  if (tutorialActive) return;
+  tutorialActive = true;
+  tutorialCurrentStep = 0;
+  tutorialOverlay.classList.remove("hidden");
+  showTutorialStep(0);
+  addLog("新手演练启动：按引导熟悉游戏玩法（可随时跳过）。");
+  render();
+}
+
+function endTutorial() {
+  tutorialActive = false;
+  tutorialOverlay.classList.add("hidden");
+  markTutorialDone();
+}
+
+function refreshTutorialHighlight() {
+  if (!tutorialActive) return;
+  const step = tutorialSteps[tutorialCurrentStep];
+  const target = document.querySelector(step.targetSelector);
+  if (target && target.offsetParent !== null) {
+    positionHighlight(target);
+    positionCard(step.cardPosition, target);
+  } else {
+    tutorialHighlight.style.display = "none";
+    positionCardCenter();
+  }
+}
+
+function initTutorialEvents() {
+  tutorialSkipBtn.addEventListener("click", () => {
+    endTutorial();
+  });
+
+  tutorialPrevBtn.addEventListener("click", () => {
+    if (tutorialCurrentStep > 0) {
+      tutorialCurrentStep--;
+      showTutorialStep(tutorialCurrentStep);
+    }
+  });
+
+  tutorialNextBtn.addEventListener("click", () => {
+    if (tutorialCurrentStep >= tutorialSteps.length - 1) {
+      endTutorial();
+    } else {
+      tutorialCurrentStep++;
+      showTutorialStep(tutorialCurrentStep);
+    }
+  });
+
+  window.addEventListener("resize", () => {
+    refreshTutorialHighlight();
+  });
+
+  window.addEventListener("scroll", () => {
+    refreshTutorialHighlight();
+  }, true);
+}
 
 function freshState() {
   const mission = missions.find((m) => m.id === "standard");
@@ -142,6 +361,7 @@ function init() {
   startBtn.addEventListener("click", start);
   endDayBtn.addEventListener("click", endDay);
   clearArchiveBtn.addEventListener("click", clearArchive);
+  initTutorialEvents();
   renderMissionCards();
   renderAllocations();
   renderArchive();
@@ -208,6 +428,12 @@ function start() {
   missionDeskEl.classList.add("hidden");
   controlsPanelEl.classList.remove("hidden");
   render();
+  setTimeout(() => {
+    refreshTutorialHighlight();
+    if (!isTutorialDone() && !tutorialActive) {
+      startTutorial();
+    }
+  }, 50);
 }
 
 function pickWeatherForMission(mission) {
@@ -270,6 +496,7 @@ function endDay() {
   state.weather = pickWeatherForMission(state.mission);
   normalize();
   render();
+  setTimeout(refreshTutorialHighlight, 50);
 }
 
 function randomEvent() {
@@ -347,10 +574,12 @@ function finish(success) {
     renderMissionCards();
     startBtn.disabled = true;
     render();
+    if (tutorialActive) endTutorial();
   });
   addLog(success ? "任务周期结束，结果如上。" : "某项关键资源归零，任务提前中止。");
   renderArchive();
   render();
+  if (tutorialActive) endTutorial();
 }
 
 function normalize() {

@@ -89,6 +89,26 @@
     <section id="result" class="result hidden"></section>
   </main>
 
+  <div id="tutorialOverlay" class="tutorial-overlay hidden">
+    <div class="tutorial-mask"></div>
+    <div id="tutorialHighlight" class="tutorial-highlight"></div>
+    <div id="tutorialCard" class="tutorial-card">
+      <div class="tutorial-step-indicator">
+        <span id="tutorialStepNum">1</span> / <span id="tutorialStepTotal">3</span>
+      </div>
+      <h3 id="tutorialTitle">步骤标题</h3>
+      <p id="tutorialDesc">步骤说明内容</p>
+      <div id="tutorialSystems" class="tutorial-systems hidden"></div>
+      <div class="tutorial-actions">
+        <button id="tutorialSkipBtn" type="button" class="tutorial-skip">跳过引导</button>
+        <div class="tutorial-nav">
+          <button id="tutorialPrevBtn" type="button" class="tutorial-prev">上一步</button>
+          <button id="tutorialNextBtn" type="button" class="tutorial-next">下一步</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="app.js"></script>
 </body>
 </html>
