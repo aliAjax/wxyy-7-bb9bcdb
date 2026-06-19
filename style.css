@@ -528,6 +528,131 @@ h2 {
   border-top: 1px dashed #c5d7da;
 }
 
+.emergency-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.emergency-mask {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(100, 20, 10, 0.72);
+  z-index: 1;
+}
+
+.emergency-card {
+  position: relative;
+  z-index: 2;
+  width: min(520px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  background: #fff;
+  border-radius: 14px;
+  padding: 28px;
+  box-shadow: 0 24px 64px rgba(80, 10, 0, 0.35);
+  border: 2px solid #d14c3f;
+  animation: emergency-shake 0.4s ease;
+}
+
+@keyframes emergency-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
+
+.emergency-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.emergency-icon {
+  font-size: 40px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.emergency-header h3 {
+  margin: 0;
+  font-size: 22px;
+  color: #d14c3f;
+}
+
+.emergency-day-info {
+  font-size: 13px;
+  color: #8e2b22;
+  font-weight: 700;
+}
+
+.emergency-desc {
+  margin: 0 0 20px;
+  line-height: 1.7;
+  color: #3e5f65;
+  font-size: 15px;
+}
+
+.emergency-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.emergency-option {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: left;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: #f6fbfb;
+  border: 2px solid #c5d7da;
+  color: #13272b;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+}
+
+.emergency-option:hover {
+  border-color: #d14c3f;
+  background: #fff5f3;
+  transform: translateX(4px);
+}
+
+.emergency-option strong {
+  font-size: 16px;
+  margin-bottom: 2px;
+}
+
+.emergency-option-desc {
+  font-size: 13px;
+  color: #63868c;
+  line-height: 1.5;
+  font-weight: 400;
+}
+
+.emergency-option-tags {
+  font-size: 12px;
+  font-weight: 700;
+  color: #725a1a;
+  background: #fff3d6;
+  padding: 4px 8px;
+  border-radius: 6px;
+  display: inline-block;
+  margin-top: 4px;
+  align-self: flex-start;
+}
+
 .hidden {
   display: none;
 }

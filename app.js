@@ -19,6 +19,13 @@ const clearArchiveBtn = document.getElementById("clearArchiveBtn");
 const archiveEmptyEl = document.getElementById("archiveEmpty");
 const archiveListEl = document.getElementById("archiveList");
 
+const emergencyOverlay = document.getElementById("emergencyOverlay");
+const emergencyIcon = document.getElementById("emergencyIcon");
+const emergencyName = document.getElementById("emergencyName");
+const emergencyDesc = document.getElementById("emergencyDesc");
+const emergencyOptions = document.getElementById("emergencyOptions");
+const emergencyDayInfo = document.getElementById("emergencyDayInfo");
+
 const tutorialOverlay = document.getElementById("tutorialOverlay");
 const tutorialHighlight = document.getElementById("tutorialHighlight");
 const tutorialCard = document.getElementById("tutorialCard");
@@ -131,9 +138,107 @@ const missions = [
   }
 ];
 
+const emergencyEvents = [
+  {
+    id: "antenna_ice",
+    name: "天线结冰",
+    icon: "❄️",
+    desc: "室外天线被厚重的冰层覆盖，通信信号时断时续，若不处理将严重影响数据传输。",
+    options: [
+      {
+        label: "启动除冰加热",
+        desc: "消耗额外柴油对天线加热除冰，通信和数据传输恢复。",
+        effects: { fuel: -6, morale: 2, data: 4 }
+      },
+      {
+        label: "手动攀塔除冰",
+        desc: "派队员冒着严寒手动清除冰层，省油但风险大。",
+        effects: { fuel: -2, morale: -8, data: 2 }
+      },
+      {
+        label: "暂时关闭天线",
+        desc: "关闭天线节省资源，通信中断，数据无法传出。",
+        effects: { fuel: 0, morale: -5, data: -8 }
+      }
+    ]
+  },
+  {
+    id: "cold_storage",
+    name: "样本冷藏故障",
+    icon: "🧊",
+    desc: "实验舱样本冷藏设备压缩机停转，冰芯样本温度正在上升，急需处置。",
+    options: [
+      {
+        label: "紧急供电修复",
+        desc: "调配大量电力重启压缩机，样本安全但柴油消耗巨大。",
+        effects: { fuel: -9, morale: 2, data: 0 }
+      },
+      {
+        label: "转移样本至备用冷柜",
+        desc: "快速转移样本，部分样本可能因温度波动受损。",
+        effects: { fuel: -3, morale: -2, data: -10 }
+      },
+      {
+        label: "放弃冷藏修复",
+        desc: "节省资源不管它，样本将大面积损毁。",
+        effects: { fuel: 0, morale: -6, data: -22 }
+      }
+    ]
+  },
+  {
+    id: "insomnia",
+    name: "队员失眠",
+    icon: "😩",
+    desc: "多名队员连续失眠，精神状态极差，影响工作效率和站内氛围。",
+    options: [
+      {
+        label: "调配热饮和休息时间",
+        desc: "消耗额外食物，为队员提供热饮和灵活休息安排。",
+        effects: { food: -7, morale: 6, data: 0 }
+      },
+      {
+        label: "集体心理疏导",
+        desc: "花时间组织团体疏导，占用部分工作精力。",
+        effects: { food: 0, morale: 4, nextDayPowerPenalty: 1 }
+      },
+      {
+        label: "硬扛过去",
+        desc: "不采取额外措施，队员自行调整。",
+        effects: { food: 0, morale: -12, data: -3 }
+      }
+    ]
+  },
+  {
+    id: "fuel_line",
+    name: "燃油管路异常",
+    icon: "⚠️",
+    desc: "供油管路压力读数异常波动，疑似管路微裂或阀门松动，有泄漏风险。",
+    options: [
+      {
+        label: "全面检修管路",
+        desc: "彻底排查并更换管件，消耗大量柴油但一劳永逸。",
+        effects: { fuel: -10, morale: 3, data: 0 }
+      },
+      {
+        label: "临时补漏处理",
+        desc: "快速应急修补，节省资源但隐患犹存。",
+        effects: { fuel: -4, morale: -2, nextDayFuelRisk: 8 }
+      },
+      {
+        label: "忽略异常继续运行",
+        desc: "节省资源不做处理，赌一把不会出大问题。",
+        effects: { fuel: 0, morale: -3, nextDayFuelRisk: 16 }
+      }
+    ]
+  }
+];
+
+const EMERGENCY_CHANCE = 0.4;
+
 let state;
 let tutorialActive = false;
 let tutorialCurrentStep = 0;
+let emergencyPending = null;
 
 const tutorialSteps = [
   {
@@ -355,6 +460,7 @@ function freshState() {
     data: mission.initial.data,
     weather: weatherDeck[0],
     allocations: { ...mission.allocations },
+    nextDayEffects: null,
     log: ["站内安静得只剩风声，等待选择任务。"]
   };
 }
@@ -425,6 +531,7 @@ function start() {
     data: mission.initial.data,
     weather: pickWeatherForMission(mission),
     allocations: { ...mission.allocations },
+    nextDayEffects: null,
     log: [mission.intro]
   };
   resultEl.classList.add("hidden");
@@ -495,8 +602,102 @@ function endDay() {
     return;
   }
 
+  if (Math.random() < EMERGENCY_CHANCE) {
+    const evt = emergencyEvents[Math.floor(Math.random() * emergencyEvents.length)];
+    addLog(`⚠ 突发事件：${evt.name}！`);
+    showEmergencyEvent(evt);
+    render();
+    return;
+  }
+
   state.day += 1;
   state.weather = pickWeatherForMission(state.mission);
+  applyNextDayEffects();
+  normalize();
+  render();
+  setTimeout(refreshTutorialHighlight, 50);
+}
+
+function applyNextDayEffects() {
+  if (!state.nextDayEffects) return;
+  const fx = state.nextDayEffects;
+  if (fx.powerPenalty && fx.powerPenalty > 0) {
+    state.weather = { ...state.weather, power: Math.max(4, state.weather.power - fx.powerPenalty) };
+    addLog(`突发事件余波：今日可用电力减少${fx.powerPenalty}格。`);
+  }
+  if (fx.fuelRisk && fx.fuelRisk > 0) {
+    if (Math.random() < 0.5) {
+      state.fuel -= fx.fuelRisk;
+      addLog(`燃油管路隐患爆发，额外损失${fx.fuelRisk}点柴油！`);
+    } else {
+      addLog("燃油管路暂时平稳，未发生泄漏。");
+    }
+  }
+  state.nextDayEffects = null;
+}
+
+function showEmergencyEvent(event) {
+  emergencyPending = event;
+  emergencyIcon.textContent = event.icon;
+  emergencyName.textContent = event.name;
+  emergencyDesc.textContent = event.desc;
+  emergencyDayInfo.textContent = `第${state.day}天 · 突发事件`;
+
+  emergencyOptions.innerHTML = "";
+  event.options.forEach((opt, idx) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "emergency-option";
+    const tags = [];
+    if (opt.effects.fuel) tags.push(`柴油${opt.effects.fuel > 0 ? "+" : ""}${opt.effects.fuel}`);
+    if (opt.effects.food) tags.push(`食物${opt.effects.food > 0 ? "+" : ""}${opt.effects.food}`);
+    if (opt.effects.morale) tags.push(`士气${opt.effects.morale > 0 ? "+" : ""}${opt.effects.morale}`);
+    if (opt.effects.data) tags.push(`数据${opt.effects.data > 0 ? "+" : ""}${opt.effects.data}`);
+    if (opt.effects.nextDayPowerPenalty) tags.push(`次日电力-${opt.effects.nextDayPowerPenalty}`);
+    if (opt.effects.nextDayFuelRisk) tags.push(`次日漏油风险`);
+    btn.innerHTML = `<strong>${opt.label}</strong><span class="emergency-option-desc">${opt.desc}</span><span class="emergency-option-tags">${tags.join("　")}</span>`;
+    btn.addEventListener("click", () => handleEmergencyChoice(idx));
+    emergencyOptions.appendChild(btn);
+  });
+
+  emergencyOverlay.classList.remove("hidden");
+}
+
+function handleEmergencyChoice(idx) {
+  const event = emergencyPending;
+  const opt = event.options[idx];
+  const fx = opt.effects;
+
+  if (fx.fuel) state.fuel += fx.fuel;
+  if (fx.food) state.food += fx.food;
+  if (fx.morale) state.morale += fx.morale;
+  if (fx.data) state.data += fx.data;
+
+  if (fx.nextDayPowerPenalty || fx.nextDayFuelRisk) {
+    if (!state.nextDayEffects) state.nextDayEffects = {};
+    if (fx.nextDayPowerPenalty) state.nextDayEffects.powerPenalty = fx.nextDayPowerPenalty;
+    if (fx.nextDayFuelRisk) state.nextDayEffects.fuelRisk = (state.nextDayEffects.fuelRisk || 0) + fx.nextDayFuelRisk;
+  }
+
+  normalize();
+  addLog(`【突发事件·${event.name}】选择「${opt.label}」— ${opt.desc}`);
+
+  emergencyPending = null;
+  emergencyOverlay.classList.add("hidden");
+
+  if (state.fuel <= 0 || state.food <= 0 || state.morale <= 0) {
+    finish(false);
+    return;
+  }
+
+  if (state.day >= state.mission.days) {
+    finish(true);
+    return;
+  }
+
+  state.day += 1;
+  state.weather = pickWeatherForMission(state.mission);
+  applyNextDayEffects();
   normalize();
   render();
   setTimeout(refreshTutorialHighlight, 50);
