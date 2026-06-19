@@ -58,10 +58,10 @@ const ARCHIVE_LIMIT = 20;
 const TUTORIAL_KEY = "polar_station_tutorial_done";
 
 const systems = [
-  { id: "heat", name: "供暖", hint: "低于3会冻伤士气" },
-  { id: "comm", name: "通信", hint: "保持求援和天气联系" },
-  { id: "lab", name: "实验", hint: "产出科考数据" },
-  { id: "food", name: "食物储藏", hint: "低于2会损耗食物" }
+  { id: "heat", name: "供暖", hint: "低于要求会冻伤士气，保障天文观测样本" },
+  { id: "comm", name: "通信", hint: "保持求援和天气联系，保障气溶胶样本" },
+  { id: "lab", name: "实验", hint: "产出各类科研样本（样本价值等价计入数据）" },
+  { id: "food", name: "食物储藏", hint: "低于2会损耗食物，保障冰芯/生物样本冷藏" }
 ];
 
 const equipmentDefs = [
@@ -196,80 +196,80 @@ const missions = [
     id: "standard",
     name: "常规7天值班",
     tag: "默认",
-    desc: "标准值守任务，维持科考站日常运转，撑过7天等待换班。",
+    desc: "标准值守任务，维持科考站日常运转，撑过7天等待换班。实验电力分配将产出各类科研样本，样本价值计入最终成果。",
     color: "#29464d",
     days: 7,
     initial: { fuel: 80, morale: 75, food: 70, data: 0 },
     allocations: { heat: 3, comm: 2, lab: 4, food: 3 },
-    dataGoal: null,
-    dataPerLab: 3,
+    dataGoal: 150,
+    dataPerLab: 0,
     weatherWeight: null,
-    intro: "值班开始，目标是撑过7天并尽量保住数据。",
+    intro: "值班开始，目标是撑过7天并尽量产出高价值科研样本。实验电力用于产出样本，样本价值等价计入数据总量。",
     successText: (s) =>
-      `科考站撑过了7天，直升机抵达，样本和数据都被带回基地。最终评分：${s.score}。`,
+      `科考站撑过了7天，直升机抵达，样本和数据都被带回基地。科研成果（数据+样本价值）：${s.data}，最终评分：${s.score}。`,
     failText: (s) =>
-      `值班失败，某项关键资源归零，任务提前中止。最终评分：${s.score}。`
+      `值班失败，某项关键资源归零，任务提前中止。仅获得科研成果 ${s.data}，最终评分：${s.score}。`
   },
   {
     id: "weather",
     name: "气象观测专项",
     tag: "通信优先",
-    desc: "连续记录极地气象数据，需要通信系统持续在线以传输实时报文。",
+    desc: "连续记录极地气象数据，需要通信系统持续在线传输实时报文，并采集大气气溶胶样本。通信在线额外奖励数据。",
     color: "#357a90",
     days: 7,
     initial: { fuel: 70, morale: 70, food: 65, data: 0 },
     allocations: { heat: 3, comm: 3, lab: 3, food: 3 },
-    dataGoal: 120,
-    dataPerLab: 3,
+    dataGoal: 180,
+    dataPerLab: 0,
     commBonus: 3,
-    intro: "气象观测任务启动，保持通信畅通以获得额外观测数据。目标数据≥120。",
+    intro: "气象观测任务启动，保持通信畅通以获得额外观测数据，并分配足够电力产出气溶胶样本。目标科研成果≥180。",
     successText: (s) =>
       s.data >= s.mission.dataGoal
-        ? `气象观测圆满完成！完整记录了${s.data}份气象报文，数据质量优秀。最终评分：${s.score}。`
-        : `撑过了7天，但仅采集到${s.data}份报文（目标≥${s.mission.dataGoal}），观测报告不够完整。最终评分：${s.score}。`,
+        ? `气象观测圆满完成！科研成果 ${s.data}（含大量气溶胶样本），数据质量优秀。最终评分：${s.score}。`
+        : `撑过了7天，但科研成果仅 ${s.data}（目标≥${s.mission.dataGoal}），观测报告不够完整。最终评分：${s.score}。`,
     failText: (s) =>
-      `气象任务中断，某项资源归零。仅采集到${s.data}份报文。最终评分：${s.score}。`
+      `气象任务中断，某项资源归零。仅获得科研成果 ${s.data}。最终评分：${s.score}。`
   },
   {
     id: "icecore",
     name: "冰芯采样远征",
     tag: "实验优先",
-    desc: "钻探深层冰芯并在实验舱内分析，实验室电力越高，产出数据越多。",
+    desc: "钻探深层冰芯并在实验舱内分析，实验室电力越高，越有机会产出高价值冰芯样本。冰芯样本需要充足冷藏电力保存。",
     color: "#6267a6",
     days: 7,
     initial: { fuel: 85, morale: 80, food: 60, data: 0 },
     allocations: { heat: 4, comm: 2, lab: 4, food: 2 },
-    dataGoal: 150,
-    dataPerLab: 4,
+    dataGoal: 220,
+    dataPerLab: 0,
     weatherWeight: { 暴风雪: 3, 晴朗: 1, 低温: 2, 极夜静风: 2 },
-    intro: "冰芯采样任务启动，分配更多电力给实验舱以获取高质量数据。目标数据≥150。",
+    intro: "冰芯采样任务启动，分配更多电力给实验舱以获取高质量冰芯样本，并确保冷藏电力充足防止样本融化。目标科研成果≥220。",
     successText: (s) =>
       s.data >= s.mission.dataGoal
-        ? `冰芯采样大获成功！${s.data}份冰芯分析数据被完整封装，发现远古气候信号。最终评分：${s.score}。`
-        : `顺利返程，但${s.data}份数据未达目标（≥${s.mission.dataGoal}），冰芯样本价值有限。最终评分：${s.score}。`,
+        ? `冰芯采样大获成功！科研成果 ${s.data}，大量高价值冰芯样本被完整封装，发现远古气候信号。最终评分：${s.score}。`
+        : `顺利返程，但科研成果仅 ${s.data}（目标≥${s.mission.dataGoal}），冰芯样本价值有限。最终评分：${s.score}。`,
     failText: (s) =>
-      `冰芯远征被迫中止，资源耗尽。只保留了${s.data}份分析数据。最终评分：${s.score}。`
+      `冰芯远征被迫中止，资源耗尽。仅保留了科研成果 ${s.data}。最终评分：${s.score}。`
   },
   {
     id: "relay",
     name: "通信中继保障",
     tag: "士气优先",
-    desc: "作为跨极区通信中继节点，稳定的信号能提振全体队员士气。",
+    desc: "作为跨极区通信中继节点，稳定的信号能提振全体队员士气。通信在线可阻止士气下降，同时兼顾样本采集。",
     color: "#c85f46",
     days: 7,
     initial: { fuel: 75, morale: 85, food: 80, data: 0 },
     allocations: { heat: 3, comm: 3, lab: 3, food: 3 },
-    dataGoal: 100,
-    dataPerLab: 3,
+    dataGoal: 130,
+    dataPerLab: 0,
     commMoraleBonus: true,
     foodReserve: true,
-    intro: "通信中继任务启动，维持通信在线可阻止士气下降，甚至提振人心。目标数据≥100。",
+    intro: "通信中继任务启动，维持通信在线可阻止士气下降，甚至提振人心。兼顾样本产出，目标科研成果≥130。",
     successText: (s) =>
       s.data >= s.mission.dataGoal
-        ? `跨极区通信中继全程在线！${s.data}份中继数据成功转发，队员状态极佳。最终评分：${s.score}。`
-        : `中继站撑过了7天，但转发数据量${s.data}未达目标（≥${s.mission.dataGoal}），部分信号丢失。最终评分：${s.score}。`,
+        ? `跨极区通信中继全程在线！科研成果 ${s.data} 成功转发，队员状态极佳，样本保存完好。最终评分：${s.score}。`
+        : `中继站撑过了7天，但科研成果 ${s.data} 未达目标（≥${s.mission.dataGoal}），部分样本和信号丢失。最终评分：${s.score}。`,
     failText: (s) =>
-      `通信中继站失守，中继任务失败。仅转发了${s.data}份数据。最终评分：${s.score}。`
+      `通信中继站失守，中继任务失败。仅获得科研成果 ${s.data}。最终评分：${s.score}。`
   }
 ];
 
@@ -378,21 +378,21 @@ let emergencyPending = null;
 const tutorialSteps = [
   {
     title: "第一步：看懂今日天气需求",
-    desc: "每天会随机出现不同天气，决定你需要应对的最低供暖格数、最低通信格数，以及当日可分配的电力上限。\n\n比如「暴风雪」天，供暖至少要5格，通信至少要3格，可用电力会被压缩到10。未达最低要求会扣士气，务必优先保证。",
+    desc: "每天会随机出现不同天气，决定你需要应对的最低供暖格数、最低通信格数，以及当日可分配的电力上限。\n\n比如「暴风雪」天，供暖至少要5格，通信至少要3格，可用电力会被压缩到10。未达最低要求会扣士气并损坏样本，务必优先保证。",
     targetSelector: ".station",
     cardPosition: "below",
     showSystems: false
   },
   {
     title: "第二步：为四个系统分配电力",
-    desc: "拖动下方四个滑块分配当天有限的电力。总和不得超过天气给出的可用电力（超出时会报错无法结束当天）。",
+    desc: "拖动下方四个滑块分配当天有限的电力。总和不得超过天气给出的可用电力（超出时会报错无法结束当天）。\n\n⚠️ 关键：实验电力只用于产出科研样本，数据来自样本产出等价转换+通信奖励。供暖/通信/冷藏不足会损坏已有样本！",
     targetSelector: "#controlsPanel",
     cardPosition: "above",
     showSystems: true
   },
   {
     title: "第三步：结束今天，观察资源变化",
-    desc: "点击「结束今天」后，系统按你分配的电力结算：\n• 未满足供暖/通信最低要求 → 扣士气\n• 电力总和 + 天气附加 → 消耗柴油\n• 食物储藏电力不足 → 食物加速损耗\n• 实验室电力 + 通信在线奖励 → 增加数据\n\n然后进入下一天，直到任务结束或某项资源归零失败。",
+    desc: "点击「结束今天」后，系统按你分配的电力结算：\n• 未满足供暖/通信最低要求 → 扣士气+损坏样本\n• 电力总和 + 天气附加 → 消耗柴油\n• 食物储藏电力不足 → 食物加速损耗+冰芯样本融化\n• 实验室电力 → 产出科研样本（价值等价计入数据）\n• 通信在线 → 获得额外观测数据\n\n然后进入下一天，直到任务结束或某项资源归零失败。",
     targetSelector: ".dashboard",
     cardPosition: "below",
     showSystems: false
@@ -400,10 +400,10 @@ const tutorialSteps = [
 ];
 
 const systemColors = {
-  heat: { bg: "#c85f46", name: "供暖", note: "低于天气要求 → 士气大降" },
-  comm: { bg: "#357a90", name: "通信", note: "在线奖励：额外观测数据" },
-  lab: { bg: "#6267a6", name: "实验", note: "电力越高 → 数据产出越多" },
-  food: { bg: "#4f8a5b", name: "食物储藏", note: "电力不足 → 食物损耗翻倍" }
+  heat: { bg: "#c85f46", name: "供暖", note: "低于天气要求 → 士气大降，天文样本损坏" },
+  comm: { bg: "#357a90", name: "通信", note: "在线奖励：额外观测数据，保障气溶胶" },
+  lab: { bg: "#6267a6", name: "实验", note: "电力越高 → 产出越多高价值样本" },
+  food: { bg: "#4f8a5b", name: "食物储藏", note: "电力不足 → 食物损耗翻倍，冰芯样本融化" }
 };
 
 function isTutorialDone() {
@@ -670,7 +670,7 @@ function renderMissionCards() {
           <span>天数<strong>${mission.days}</strong></span>
         </div>
         <div class="mission-goal">
-          目标：${mission.dataGoal ? `数据 ≥ ${mission.dataGoal}` : `撑过 ${mission.days} 天`}
+          目标：${mission.dataGoal ? `科研成果（数据+样本价值）≥ ${mission.dataGoal}` : `撑过 ${mission.days} 天`}
         </div>
       </div>
     `;
@@ -812,7 +812,7 @@ function calculateEquipmentEffects() {
 }
 
 function produceSamples(labPower, labEfficiency, crewDataBoost) {
-  const result = { produced: [], totalValueGained: 0, details: [] };
+  const result = { produced: [], totalValueGained: 0, dataEquivalent: 0, details: [] };
   const alloc = state.allocations;
   sampleTypes.forEach((type) => {
     const s = state.samples[type.id];
@@ -832,6 +832,7 @@ function produceSamples(labPower, labEfficiency, crewDataBoost) {
       const val = total * type.value;
       result.produced.push({ typeId: type.id, type, count: total, value: val });
       result.totalValueGained += val;
+      result.dataEquivalent += val;
     }
   });
   return result;
@@ -998,10 +999,13 @@ function endDay() {
   foodLoss = Math.max(1, foodLoss);
   state.food -= foodLoss;
 
-  let dataGain = state.allocations.lab * state.mission.dataPerLab;
-  const baseDataGain = dataGain;
-  dataGain = Math.round(dataGain * eqEffects.labEfficiency);
-  const labEffMod = dataGain - baseDataGain;
+  state.sampleValueLostToday = {};
+  const sampleResult = produceSamples(state.allocations.lab, eqEffects.labEfficiency, crewEffects.dataBoost);
+  const sampleDamage = checkSamplePreservation(state.allocations, eqEffects);
+  state.sampleValueLostToday = sampleDamage;
+
+  let dataGain = 0;
+  const baseDataGain = 0;
   let commDataGain = 0;
   if (commOk) {
     commDataGain = Math.round(2 * eqEffects.commEfficiency);
@@ -1013,12 +1017,9 @@ function endDay() {
     dataGain += missionCommBonus;
   }
   dataGain += crewEffects.dataBoost;
+  const sampleDataGain = sampleResult.dataEquivalent;
+  dataGain += sampleDataGain;
   state.data += dataGain;
-
-  state.sampleValueLostToday = {};
-  const sampleResult = produceSamples(state.allocations.lab, eqEffects.labEfficiency, crewEffects.dataBoost);
-  const sampleDamage = checkSamplePreservation(state.allocations, eqEffects);
-  state.sampleValueLostToday = sampleDamage;
 
   const durDegrades = degradeEquipment();
 
@@ -1039,12 +1040,11 @@ function endDay() {
   if (crewEffects.moraleBoost > 0) settlementLines.push(`• 士气增益：+${crewEffects.moraleBoost}（队员专长）`);
   settlementLines.push(`• 食物损耗：${baseFoodLoss}（基础）${crewFoodSave > 0 ? ` - ${crewFoodSave}（队员节省）` : ''}${eqFoodLoss > 0 ? ` + ${eqFoodLoss}（冷库老化）` : eqFoodLoss < 0 ? ` ${eqFoodLoss}（冷库升级）` : ''} = ${foodLoss}`);
   const dataParts = [];
-  dataParts.push(`${baseDataGain}（实验基础）`);
-  if (labEffMod !== 0) dataParts.push(`${labEffMod > 0 ? '+' : ''}${labEffMod}（仪器${labEffMod > 0 ? '升级' : '老化'}）`);
+  if (sampleDataGain > 0) dataParts.push(`${sampleDataGain}（样本产出等价）`);
   if (commDataGain > 0) dataParts.push(`+${commDataGain}（通信在线）`);
   if (missionCommBonus > 0) dataParts.push(`+${missionCommBonus}（任务奖励）`);
   if (crewEffects.dataBoost > 0) dataParts.push(`+${crewEffects.dataBoost}（队员专长）`);
-  settlementLines.push(`• 数据产出：${dataParts.join(' ')} = ${dataGain}`);
+  settlementLines.push(`• 数据产出：${dataParts.length ? dataParts.join(' ') : '0（未产出样本）'} = ${dataGain}`);
 
   if (eqEffects.details.length > 0) {
     settlementLines.push(`【设备状态】${eqEffects.details.join('；')}`);
@@ -1255,7 +1255,7 @@ function finish(success) {
     ending: resultText
   });
   const goalLine = state.mission.dataGoal
-    ? `<p class="result-goal">任务目标：数据 ≥ ${state.mission.dataGoal}，实际：${state.data}，${
+    ? `<p class="result-goal">任务目标：科研成果（数据+样本价值）≥ ${state.mission.dataGoal}，实际：${state.data}，${
         state.data >= state.mission.dataGoal ? "✅ 达成" : "❌ 未达成"
       }</p>`
     : "";
@@ -1270,7 +1270,7 @@ function finish(success) {
     <p>${state.mission.name}</p>
     ${goalLine}
     ${sampleScoreLine}
-    <p>柴油${state.fuel}，食物${state.food}，士气${state.morale}，数据${state.data}，样本价值${sampleValue}。</p>
+    <p>柴油${state.fuel}，食物${state.food}，士气${state.morale}，科研成果${state.data}，样本价值${sampleValue}。</p>
     ${sampleDetailLine}
     <p>${resultText}</p>
     <button id="returnBtn" type="button">返回任务选择台</button>
@@ -1382,12 +1382,20 @@ function render() {
       extraHints.push(`通信达标额外+${state.mission.commBonus}数据`);
     if (state.mission.commMoraleBonus) extraHints.push("通信达标士气+3");
     if (state.mission.foodReserve) extraHints.push("食物储备加成，消耗降低");
+    const labPower = state.allocations.lab;
+    const unlockTypes = sampleTypes.filter(t => labPower >= t.labPowerThreshold).length;
+    if (unlockTypes > 0) {
+      const names = sampleTypes.filter(t => labPower >= t.labPowerThreshold).map(t => t.icon).join("");
+      extraHints.push(`实验${labPower}格可产出${unlockTypes}类样本${names}`);
+    } else if (labPower > 0) {
+      extraHints.push(`实验${labPower}格未达最低产出门槛（最低2格）`);
+    }
     const crewPreview = previewCrewEffects();
     if (crewPreview.summary) extraHints.push(crewPreview.summary);
     const eqPreview = previewEquipmentEffects();
     if (eqPreview) extraHints.push(eqPreview);
     const effectiveHeatReq = Math.max(1, state.weather.heat + calculateEquipmentEffects().heatReqAdj);
-    forecastEl.textContent = `今日${state.weather.name}，建议供暖至少${effectiveHeatReq}格（天气${state.weather.heat}+设备调整），通信至少${state.weather.comm}格。剩余电力可以投给实验或食物储藏。${extraHints.length ? "【" + extraHints.join("，") + "】" : ""}`;
+    forecastEl.textContent = `今日${state.weather.name}，建议供暖至少${effectiveHeatReq}格（天气${state.weather.heat}+设备调整），通信至少${state.weather.comm}格。剩余电力投给实验产出样本（实验电力越高，样本类型越多、价值越高），食物储藏保障样本冷藏。${extraHints.length ? "【" + extraHints.join("，") + "】" : ""}`;
   } else {
     forecastEl.textContent = state.selectedMissionId
       ? "已选择任务，点击确认按钮进入电力分配。"
@@ -1494,7 +1502,7 @@ function renderSamples() {
       <div class="sample-stats-row" style="opacity:.75;font-size:11px">
         <span>累计产出<strong>${s.totalProduced}</strong></span>
         <span>累计损毁<strong>${s.totalLost}</strong></span>
-        <span>损毁惩罚<strong>-${type.lossWhenFail}%</strong></span>
+        <span>不达标惩罚<strong>-${type.lossWhenFail}%</strong></span>
       </div>
     `;
     sampleCardsEl.appendChild(card);
