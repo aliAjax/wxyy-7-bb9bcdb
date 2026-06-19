@@ -37,6 +37,7 @@ const archiveDetailSampleIntegrity = document.getElementById("archiveDetailSampl
 const archiveDetailComm = document.getElementById("archiveDetailComm");
 const archiveDetailScore = document.getElementById("archiveDetailScore");
 const archiveDetailEnding = document.getElementById("archiveDetailEnding");
+const archiveDetailCrew = document.getElementById("archiveDetailCrew");
 const archiveDetailCloseBtn = document.getElementById("archiveDetailCloseBtn");
 const archiveDetailOkBtn = document.getElementById("archiveDetailOkBtn");
 const archiveDetailMask = document.querySelector(".archive-detail-mask");
@@ -331,6 +332,53 @@ const crewSpecialtyBonus = {
   comm: { dataBoost: 4, moraleBoost: 1 },
   lab: { dataBoost: 6 },
   food: { foodSave: 4, moraleBoost: 1 }
+};
+
+const skillLevelConfig = {
+  thresholds: [0, 3, 7, 12, 20],
+  names: ["入门", "熟练", "精通", "专家", "大师"],
+  bonusMult: [1.0, 1.15, 1.3, 1.5, 1.75]
+};
+
+const tempStatusDefs = {
+  exhausted: {
+    id: "exhausted",
+    name: "筋疲力尽",
+    icon: "😵",
+    desc: "连续疲劳过高，效率-25%，次日疲劳额外+10",
+    efficiencyMult: 0.75,
+    nextDayFatigueBonus: 10,
+    trigger: (member) => member.fatigue >= 80 && (member._consecutiveHighFatigue || 0) >= 2,
+    clearRestDays: 2
+  },
+  burnout: {
+    id: "burnout",
+    name: "职业倦怠",
+    icon: "🫠",
+    desc: "士气持续低落，效率-20%，专长匹配奖励减半",
+    efficiencyMult: 0.8,
+    specialtyBonusMult: 0.5,
+    trigger: (member) => member.mood <= 30 && (member._consecutiveLowMood || 0) >= 2,
+    clearRestDays: 3
+  },
+  shaken: {
+    id: "shaken",
+    name: "心神不宁",
+    icon: "😰",
+    desc: "暴风雪后应激反应，次日心情恢复减慢",
+    moodRecoveryMult: 0.5,
+    trigger: null,
+    clearRestDays: 1
+  },
+  in_flow: {
+    id: "in_flow",
+    name: "得心应手",
+    icon: "✨",
+    desc: "连续专长匹配，效率+10%",
+    efficiencyMult: 1.1,
+    trigger: (member) => member.specialty === member.previousStation && member.consecutiveDays >= 3 && member.fatigue < 60 && member.mood > 50,
+    clearRestDays: 1
+  }
 };
 
 const weatherDeck = [
@@ -1031,8 +1079,88 @@ function createInitialCrew() {
     mood: t.initialMood,
     station: null,
     previousStation: null,
-    consecutiveDays: 0
+    consecutiveDays: 0,
+    skills: {
+      heat: 0,
+      comm: 0,
+      lab: 0,
+      food: 0
+    },
+    skillLevels: {
+      heat: 0,
+      comm: 0,
+      lab: 0,
+      food: 0
+    },
+    tempStatuses: [],
+    statusRestCounters: {},
+    _consecutiveHighFatigue: 0,
+    _consecutiveLowMood: 0,
+    _growthLog: []
   }));
+}
+
+function getSkillLevel(member, stationId) {
+  const exp = member.skills[stationId] || 0;
+  let level = 0;
+  for (let i = skillLevelConfig.thresholds.length - 1; i >= 0; i--) {
+    if (exp >= skillLevelConfig.thresholds[i]) {
+      level = i;
+      break;
+    }
+  }
+  return level;
+}
+
+function getSkillProgress(member, stationId) {
+  const exp = member.skills[stationId] || 0;
+  const level = getSkillLevel(member, stationId);
+  const currentThreshold = skillLevelConfig.thresholds[level];
+  const nextThreshold = skillLevelConfig.thresholds[level + 1];
+  if (!nextThreshold) return { level, progress: 1, exp, nextExp: null };
+  const progress = (exp - currentThreshold) / (nextThreshold - currentThreshold);
+  return { level, progress: Math.min(1, progress), exp, nextExp: nextThreshold };
+}
+
+function getTempStatusEfficiencyMult(member) {
+  let mult = 1;
+  member.tempStatuses.forEach((sid) => {
+    const def = tempStatusDefs[sid];
+    if (def && def.efficiencyMult) mult *= def.efficiencyMult;
+  });
+  return mult;
+}
+
+function getTempStatusSpecialtyMult(member) {
+  let mult = 1;
+  member.tempStatuses.forEach((sid) => {
+    const def = tempStatusDefs[sid];
+    if (def && def.specialtyBonusMult) mult *= def.specialtyBonusMult;
+  });
+  return mult;
+}
+
+function hasTempStatus(member, statusId) {
+  return member.tempStatuses.includes(statusId);
+}
+
+function addTempStatus(member, statusId) {
+  if (!hasTempStatus(member, statusId)) {
+    member.tempStatuses.push(statusId);
+    member.statusRestCounters[statusId] = 0;
+    return true;
+  }
+  return false;
+}
+
+function removeTempStatus(member, statusId) {
+  const idx = member.tempStatuses.indexOf(statusId);
+  if (idx >= 0) {
+    member.tempStatuses.splice(idx, 1);
+    delete member.statusRestCounters[statusId];
+    return true;
+  }
+  return false;
 }
 
 function createInitialEquipment() {
@@ -1627,6 +1755,24 @@ function startCampaignChapter(chapterIndex) {
     ? campaignState.chapterOutcomes[campaignState.chapterOutcomes.length - 1].samples
     : null;
 
+  let initCrew;
+  if (carryoverCrew) {
+    initCrew = JSON.parse(JSON.stringify(carryoverCrew));
+    initCrew.forEach((m) => {
+      m.station = null;
+      m.previousStation = null;
+      m.consecutiveDays = 0;
+      m.tempStatuses = [];
+      m.statusRestCounters = {};
+      m._consecutiveHighFatigue = 0;
+      m._consecutiveLowMood = 0;
+      m.fatigue = Math.max(m.initialFatigue || 15, m.fatigue - 30);
+      m.mood = Math.min(100, m.mood + 15);
+    });
+  } else {
+    initCrew = createInitialCrew();
+  }
+
   state = {
     started: true,
     mission: fakeMission,
@@ -1639,7 +1785,7 @@ function startCampaignChapter(chapterIndex) {
     weather: pickWeatherForMission(fakeMission),
     allocations: { ...chapter.allocations },
     nextDayEffects: null,
-    crew: carryoverCrew ? JSON.parse(JSON.stringify(carryoverCrew)) : createInitialCrew(),
+    crew: initCrew,
     equipment: carryoverEquipment ? JSON.parse(JSON.stringify(carryoverEquipment)) : createInitialEquipment(),
     samples: carryoverSamples ? JSON.parse(JSON.stringify(carryoverSamples)) : createInitialSamples(),
     sampleValueLostToday: {},
@@ -2341,7 +2487,8 @@ function finishCampaignChapter(success) {
     sampleIntegrity: sampleStats.avgIntegrity,
     commComplete: state.commChain.isComplete,
     score: Math.max(0, state.data + state.fuel + state.food + state.morale),
-    ending: success ? "章节通过" : "章节失败"
+    ending: success ? "章节通过" : "章节失败",
+    crew: JSON.parse(JSON.stringify(state.crew))
   });
 
   if (campaignState.chapterIndex >= campaignChapters.length - 1) {
@@ -2497,7 +2644,8 @@ function showCampaignEnding(lastChapterSuccess, allObjectivesMet) {
     sampleIntegrity: lastOutcome.sampleIntegrity,
     commComplete: commComplete,
     score: totalScore,
-    ending: `${ending.rank}级·${ending.name}`
+    ending: `${ending.rank}级·${ending.name}`,
+    crew: JSON.parse(JSON.stringify(lastOutcome.crew || state.crew))
   });
 
   campaignEndingOverlay.classList.remove("hidden");
@@ -2591,7 +2739,8 @@ function finish(success) {
     sampleIntegrity: sampleIntegrity,
     commComplete: state.commChain.isComplete,
     score: score,
-    ending: resultText
+    ending: resultText,
+    crew: JSON.parse(JSON.stringify(state.crew))
   });
   const goalLine = state.mission.dataGoal
     ? `<p class="result-goal">任务目标：科研成果（数据+样本价值）≥ ${state.mission.dataGoal}，实际：${state.data}，${
@@ -3233,7 +3382,53 @@ function showArchiveDetail(record) {
   }
   archiveDetailScore.textContent = `综合评分：${record.score}`;
   archiveDetailEnding.textContent = record.ending;
+
+  if (record.crew && Array.isArray(record.crew)) {
+    let html = "";
+    record.crew.forEach((m) => {
+      const topStation = Object.entries(m.skills || {})
+        .sort((a, b) => (b[1] || 0) - (a[1] || 0))[0];
+      const topSkillName = topStation
+        ? (stations.find((s) => s.id === topStation[0])?.name || topStation[0])
+        : "—";
+      const topSkillLevel = topStation
+        ? skillLevelConfig.names[getSkillLevelLocal(topStation[1])] || "入门"
+        : "—";
+      const statusNames = (m.tempStatuses || [])
+        .map((sid) => tempStatusDefs[sid]?.name)
+        .filter(Boolean);
+      html += `
+        <div class="archive-crew-item">
+          <div class="archive-crew-head">
+            <span class="archive-crew-name">${m.avatar || "👤"} ${m.name}</span>
+            <span class="crew-specialty specialty-${m.specialty}">${m.specialtyName}</span>
+          </div>
+          <div class="archive-crew-meta">
+            疲劳 ${m.fatigue} · 心情 ${m.mood} · 最强技能：${topSkillName}（${topSkillLevel}）
+          </div>
+          ${statusNames.length > 0 ? `<div class="archive-crew-meta" style="color:#8e2b22">状态：${statusNames.join("、")}</div>` : ""}
+        </div>
+      `;
+    });
+    archiveDetailCrew.innerHTML = html;
+    archiveDetailCrew.style.display = "";
+  } else {
+    archiveDetailCrew.innerHTML = '<p style="margin:0;color:#63868c;font-size:13px;">暂无队员成长记录（旧版本档案）</p>';
+  }
+
   archiveDetailOverlay.classList.remove("hidden");
+}
+
+function getSkillLevelLocal(exp) {
+  exp = exp || 0;
+  let level = 0;
+  for (let i = skillLevelConfig.thresholds.length - 1; i >= 0; i--) {
+    if (exp >= skillLevelConfig.thresholds[i]) {
+      level = i;
+      break;
+    }
+  }
+  return level;
 }
 
 function closeArchiveDetail() {
@@ -3285,7 +3480,10 @@ function calculateCrewEffects() {
     fatigueWarns: [],
     moodPenalties: [],
     matched: [],
-    fatiguedPenalty: { data: 0, food: 0, morale: 0 }
+    fatiguedPenalty: { data: 0, food: 0, morale: 0 },
+    skillUps: [],
+    statusGained: [],
+    statusCleared: []
   };
 
   state.crew.forEach((member) => {
@@ -3295,18 +3493,21 @@ function calculateCrewEffects() {
     const bonus = crewSpecialtyBonus[member.station] || {};
 
     const efficiency = getCrewEfficiency(member);
+    const skillLevel = getSkillLevel(member, member.station);
+    const skillMult = skillLevelConfig.bonusMult[skillLevel] || 1.0;
+    const statusSpecialtyMult = getTempStatusSpecialtyMult(member);
 
     if (isMatched) {
-      if (bonus.fuelSave) effects.fuelSave += Math.round(bonus.fuelSave * efficiency);
-      if (bonus.dataBoost) effects.dataBoost += Math.round(bonus.dataBoost * efficiency);
-      if (bonus.foodSave) effects.foodSave += Math.round(bonus.foodSave * efficiency);
-      if (bonus.moraleBoost) effects.moraleBoost += Math.round(bonus.moraleBoost * efficiency);
+      if (bonus.fuelSave) effects.fuelSave += Math.round(bonus.fuelSave * efficiency * skillMult * statusSpecialtyMult);
+      if (bonus.dataBoost) effects.dataBoost += Math.round(bonus.dataBoost * efficiency * skillMult * statusSpecialtyMult);
+      if (bonus.foodSave) effects.foodSave += Math.round(bonus.foodSave * efficiency * skillMult * statusSpecialtyMult);
+      if (bonus.moraleBoost) effects.moraleBoost += Math.round(bonus.moraleBoost * efficiency * skillMult * statusSpecialtyMult);
       effects.matched.push(member.name);
     } else {
-      if (bonus.fuelSave) effects.fuelSave += Math.round(bonus.fuelSave * 0.4 * efficiency);
-      if (bonus.dataBoost) effects.dataBoost += Math.round(bonus.dataBoost * 0.4 * efficiency);
-      if (bonus.foodSave) effects.foodSave += Math.round(bonus.foodSave * 0.4 * efficiency);
-      if (bonus.moraleBoost) effects.moraleBoost += Math.round(bonus.moraleBoost * 0.4 * efficiency);
+      if (bonus.fuelSave) effects.fuelSave += Math.round(bonus.fuelSave * 0.4 * efficiency * skillMult);
+      if (bonus.dataBoost) effects.dataBoost += Math.round(bonus.dataBoost * 0.4 * efficiency * skillMult);
+      if (bonus.foodSave) effects.foodSave += Math.round(bonus.foodSave * 0.4 * efficiency * skillMult);
+      if (bonus.moraleBoost) effects.moraleBoost += Math.round(bonus.moraleBoost * 0.4 * efficiency * skillMult);
     }
 
     if (efficiency < 0.5) {
@@ -3319,6 +3520,12 @@ function calculateCrewEffects() {
     } else if (member.fatigue >= 70) {
       effects.fatigueWarns.push(`${member.name} 疲劳过高（${member.fatigue}），效率受影响。`);
     }
+
+    member.tempStatuses.forEach((sid) => {
+      const def = tempStatusDefs[sid];
+      if (def && def.nextDayFatigueBonus) {
+      }
+    });
   });
 
   effects.dataBoost += effects.fatiguedPenalty.data;
@@ -3341,6 +3548,11 @@ function getCrewEfficiency(member) {
   if (member.mood <= 20) efficiency *= 0.7;
   else if (member.mood <= 40) efficiency *= 0.85;
   else if (member.mood >= 80) efficiency *= 1.05;
+  efficiency *= getTempStatusEfficiencyMult(member);
+  if (member.station && member.station !== "rest") {
+    const skillLevel = getSkillLevel(member, member.station);
+    efficiency *= 1 + (skillLevel * 0.05);
+  }
   return Math.max(0.2, efficiency);
 }
 
@@ -3384,30 +3596,42 @@ function previewCrewEffects() {
 }
 
 function updateCrewAfterDay() {
+  const dayGrowthEvents = [];
+  const dayStatusEvents = [];
+
   state.crew.forEach((member) => {
     member.previousStation = member.station;
 
     if (member.station === "rest") {
       member.fatigue = Math.max(0, member.fatigue - 35);
-      member.mood = Math.min(100, member.mood + 8);
+      const moodRecoveryMult = hasTempStatus(member, "shaken") ? tempStatusDefs.shaken.moodRecoveryMult : 1;
+      member.mood = Math.min(100, member.mood + Math.round(8 * moodRecoveryMult));
       member.consecutiveDays = 0;
+
+      member.tempStatuses.slice().forEach((sid) => {
+        const def = tempStatusDefs[sid];
+        if (!def) return;
+        member.statusRestCounters[sid] = (member.statusRestCounters[sid] || 0) + 1;
+        if (member.statusRestCounters[sid] >= def.clearRestDays) {
+          removeTempStatus(member, sid);
+          dayStatusEvents.push(`${member.name} 恢复状态「${def.name}」解除`);
+        }
+      });
     } else {
       let fatigueDelta = 15;
       const isMatched = member.specialty === member.station;
       if (!isMatched) fatigueDelta += 5;
 
-      if (member.consecutiveDays >= 2) {
-        fatigueDelta += 8;
-      }
-      if (member.consecutiveDays >= 3) {
-        fatigueDelta += 10;
-      }
-      if (member.consecutiveDays >= 4) {
-        fatigueDelta += 12;
-      }
+      if (member.consecutiveDays >= 2) fatigueDelta += 8;
+      if (member.consecutiveDays >= 3) fatigueDelta += 10;
+      if (member.consecutiveDays >= 4) fatigueDelta += 12;
 
       if (state.weather.name === "暴风雪") fatigueDelta += 6;
       else if (state.weather.name === "低温") fatigueDelta += 3;
+
+      if (hasTempStatus(member, "exhausted")) {
+        fatigueDelta += tempStatusDefs.exhausted.nextDayFatigueBonus;
+      }
 
       member.fatigue = Math.min(100, member.fatigue + fatigueDelta);
 
@@ -3426,10 +3650,59 @@ function updateCrewAfterDay() {
       } else {
         member.consecutiveDays = 1;
       }
+
+      if (member.station && member.station !== "rest") {
+        const gainExp = isMatched ? 2 : 1;
+        const oldLevel = getSkillLevel(member, member.station);
+        member.skills[member.station] = (member.skills[member.station] || 0) + gainExp;
+        const newLevel = getSkillLevel(member, member.station);
+        member.skillLevels[member.station] = newLevel;
+        if (newLevel > oldLevel) {
+          const stationName = stations.find((s) => s.id === member.station)?.name || member.station;
+          const levelName = skillLevelConfig.names[newLevel];
+          dayGrowthEvents.push(`🌟 ${member.name} ${stationName}技能提升至「${levelName}」！`);
+          member._growthLog.push({ day: state.day, station: member.station, level: newLevel });
+        }
+      }
     }
+
+    if (member.fatigue >= 80) {
+      member._consecutiveHighFatigue = (member._consecutiveHighFatigue || 0) + 1;
+    } else {
+      member._consecutiveHighFatigue = 0;
+    }
+    if (member.mood <= 30) {
+      member._consecutiveLowMood = (member._consecutiveLowMood || 0) + 1;
+    } else {
+      member._consecutiveLowMood = 0;
+    }
+
+    if (state.weather.name === "暴风雪" && !hasTempStatus(member, "shaken") && member.fatigue >= 50) {
+      if (Math.random() < 0.3) {
+        if (addTempStatus(member, "shaken")) {
+          dayStatusEvents.push(`😰 ${member.name} 受暴风雪影响出现「心神不宁」`);
+        }
+      }
+    }
+
+    Object.values(tempStatusDefs).forEach((def) => {
+      if (!def.trigger) return;
+      if (def.trigger(member)) {
+        if (addTempStatus(member, def.id)) {
+          dayStatusEvents.push(`${def.icon} ${member.name} 获得临时状态「${def.name}」`);
+        }
+      }
+    });
 
     member.station = member.station === "rest" ? null : null;
   });
+
+  if (dayGrowthEvents.length > 0 || dayStatusEvents.length > 0) {
+    setTimeout(() => {
+      dayGrowthEvents.forEach((e) => addLog(e));
+      dayStatusEvents.forEach((e) => addLog(e));
+    }, 0);
+  }
 
   state.crew.forEach((m) => {
     if (m.station === null) {
@@ -3487,6 +3760,15 @@ function formatCrewDayLog(crewEffects) {
     }
   });
 
+  state.crew.forEach((m) => {
+    const statusNames = m.tempStatuses
+      .map((sid) => tempStatusDefs[sid]?.name)
+      .filter(Boolean);
+    if (statusNames.length > 0) {
+      parts.push(`${m.name} 状态：${statusNames.join("、")}`);
+    }
+  });
+
   return parts.length ? parts.join("，") : "队员正常值守。";
 }
 
@@ -3503,6 +3785,39 @@ function renderCrewCards() {
     if (member.fatigue >= 70) warnHtml.push(`<div class="crew-warn">⚠ 疲劳过高，效率下降</div>`);
     if (member.mood <= 30) warnHtml.push(`<div class="crew-warn">⚠ 心情低落</div>`);
     if (member.consecutiveDays >= 3 && member.station !== "rest") warnHtml.push(`<div class="crew-warn">⚠ 连续${member.consecutiveDays}天高强度工作</div>`);
+
+    const statusHtml = member.tempStatuses.length > 0
+      ? `<div class="crew-status-row">
+          ${member.tempStatuses.map((sid) => {
+            const def = tempStatusDefs[sid];
+            if (!def) return "";
+            const isNegative = sid === "exhausted" || sid === "burnout" || sid === "shaken";
+            const cls = isNegative ? "crew-status-tag negative" : "crew-status-tag positive";
+            return `<span class="${cls}" title="${def.desc}">${def.icon} ${def.name}</span>`;
+          }).join("")}
+        </div>`
+      : "";
+
+    const displayStation = member.station || member.previousStation || member.specialty;
+    const skillProg = getSkillProgress(member, displayStation);
+    const levelName = skillLevelConfig.names[skillProg.level] || "入门";
+    const stationInfo = stations.find((s) => s.id === displayStation);
+    const stationName = stationInfo ? stationInfo.icon + stationInfo.name : displayStation;
+    const progressPct = Math.round(skillProg.progress * 100);
+    const nextExpStr = skillProg.nextExp !== null
+      ? `${skillProg.exp}/${skillProg.nextExp}`
+      : `${skillProg.exp} (已满级)`;
+
+    const skillHtml = `<div class="crew-skill-section">
+      <div class="crew-skill-head">
+        <span class="crew-skill-label">📈 ${stationName}技能</span>
+        <span class="crew-skill-level">${levelName}</span>
+      </div>
+      <div class="crew-skill-bar-wrap">
+        <div class="crew-skill-bar"><div class="crew-skill-fill" style="width:${progressPct}%"></div></div>
+        <span class="crew-skill-exp">${nextExpStr}</span>
+      </div>
+    </div>`;
 
     const efficiency = Math.round(getCrewEfficiency(member) * 100);
 
@@ -3526,6 +3841,8 @@ function renderCrewCards() {
           <div class="crew-stat-bar"><div class="crew-stat-fill fill-mood" style="width:${member.mood}%"></div></div>
         </div>
       </div>
+      ${skillHtml}
+      ${statusHtml}
       ${warnHtml.join("")}
       <div class="crew-assignments" data-crew-id="${member.id}"></div>
     `;
@@ -3545,8 +3862,14 @@ function renderCrewCards() {
       if (isMatched && st.id !== "rest") {
         btn.classList.add("matched");
       }
+      const skillLv = st.id !== "rest" ? getSkillLevel(member, st.id) : 0;
+      const skillHint = st.id !== "rest" && skillLv > 0 ? `（${skillLevelConfig.names[skillLv]}，收益×${skillLevelConfig.bonusMult[skillLv]}）` : "";
       btn.innerHTML = `${st.icon}<div>${st.name}</div>${isMatched && st.id !== "rest" ? "<small>专长</small>" : "<small>&nbsp;</small>"}`;
-      btn.title = isMatched && st.id !== "rest" ? `${st.desc}（${member.specialtyName}，效率+60%）` : st.desc;
+      btn.title = isMatched && st.id !== "rest"
+        ? `${st.desc}（${member.specialtyName}，效率+60%${skillHint}）`
+        : st.id !== "rest"
+          ? `${st.desc}${skillHint}`
+          : st.desc;
       btn.addEventListener("click", () => assignCrewStation(member.id, st.id));
       assignmentsEl.appendChild(btn);
     });

@@ -889,6 +889,93 @@ h2 {
   color: #13272b;
 }
 
+.crew-skill-section {
+  padding: 8px 10px;
+  background: #f0f7f8;
+  border: 1px solid #d6e6e8;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.crew-skill-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+
+.crew-skill-label {
+  color: #3e5f65;
+  font-weight: 600;
+}
+
+.crew-skill-level {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #357a90, #5ba3b5);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.crew-skill-bar-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.crew-skill-bar {
+  flex: 1;
+  height: 6px;
+  border-radius: 999px;
+  background: #e8f1f2;
+  overflow: hidden;
+}
+
+.crew-skill-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #5ba3b5, #4f8a5b);
+  transition: width 0.3s ease;
+}
+
+.crew-skill-exp {
+  font-size: 10px;
+  color: #63868c;
+  font-weight: 600;
+  white-space: nowrap;
+  min-width: 56px;
+  text-align: right;
+}
+
+.crew-status-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.crew-status-tag {
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.crew-status-tag.negative {
+  background: #fdecea;
+  color: #8e2b22;
+  border: 1px solid #f5c6c0;
+}
+
+.crew-status-tag.positive {
+  background: #eef7f0;
+  color: #2e6b3c;
+  border: 1px solid #b5d5bc;
+}
+
 @media (max-width: 900px) {
   .crew-cards {
     grid-template-columns: repeat(2, 1fr);
@@ -2933,6 +3020,38 @@ h2 {
   line-height: 1.7;
   margin: 0;
   white-space: pre-wrap;
+}
+
+.archive-detail-crew {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.archive-crew-item {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid #c5d7da;
+}
+
+.archive-crew-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.archive-crew-name {
+  font-weight: 700;
+  font-size: 14px;
+  color: #13272b;
+}
+
+.archive-crew-meta {
+  font-size: 12px;
+  color: #63868c;
+  line-height: 1.5;
 }
 
 .archive-detail-ok {
