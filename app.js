@@ -231,7 +231,10 @@ function positionCard(position, target) {
   const rect = target.getBoundingClientRect();
   const cardWidth = Math.min(420, window.innerWidth - 32);
   tutorialCard.style.width = cardWidth + "px";
-  const cardHeight = 280;
+  const cardHeight = Math.min(
+    tutorialCard.getBoundingClientRect().height,
+    window.innerHeight - 32
+  );
   const gap = 16;
 
   let left, top;
