@@ -1713,3 +1713,456 @@ h2 {
     gap: 6px;
   }
 }
+
+.campaign-progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: #13272b;
+  color: #fff;
+}
+
+.campaign-progress-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #f2c14e;
+  white-space: nowrap;
+}
+
+.campaign-progress-track {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+.campaign-chapter-dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #3e5f65;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: #8fa9ae;
+  transition: all 0.3s ease;
+}
+
+.campaign-chapter-dot.done {
+  background: #4f8a5b;
+  color: #fff;
+}
+
+.campaign-chapter-dot.current {
+  background: #f2c14e;
+  color: #13272b;
+  box-shadow: 0 0 10px rgba(242, 193, 78, 0.5);
+}
+
+.campaign-chapter-line {
+  width: 24px;
+  height: 3px;
+  background: #3e5f65;
+}
+
+.campaign-chapter-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #c5d7da;
+}
+
+.chapter-intro-overlay,
+.branch-event-overlay,
+.chapter-settle-overlay,
+.campaign-ending-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chapter-intro-mask,
+.branch-event-mask,
+.chapter-settle-mask,
+.campaign-ending-mask {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(19, 39, 43, 0.82);
+  z-index: 1;
+}
+
+.chapter-intro-card,
+.branch-event-card,
+.chapter-settle-card,
+.campaign-ending-card {
+  position: relative;
+  z-index: 2;
+  width: min(580px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  background: #fff;
+  border-radius: 16px;
+  padding: 32px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.4);
+}
+
+.chapter-intro-card {
+  border-top: 5px solid #357a90;
+}
+
+.branch-event-card {
+  border-top: 5px solid #6267a6;
+}
+
+.chapter-settle-card {
+  border-top: 5px solid #4f8a5b;
+}
+
+.campaign-ending-card {
+  border-top: 5px solid #f2c14e;
+  text-align: center;
+}
+
+.chapter-intro-badge {
+  display: inline-block;
+  padding: 4px 14px;
+  border-radius: 999px;
+  background: #357a90;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.chapter-intro-card h2 {
+  font-size: 26px;
+  color: #13272b;
+  margin-bottom: 6px;
+}
+
+.chapter-intro-subtitle {
+  margin: 0 0 16px;
+  color: #63868c;
+  font-size: 14px;
+  font-style: italic;
+}
+
+.chapter-intro-narrative {
+  padding: 16px;
+  border-radius: 10px;
+  background: #f6fbfb;
+  border-left: 4px solid #357a90;
+  color: #3e5f65;
+  font-size: 14px;
+  line-height: 1.8;
+  margin-bottom: 18px;
+}
+
+.chapter-intro-objectives {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.chapter-obj-item {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fff3d6;
+  color: #725a1a;
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chapter-obj-item .obj-icon {
+  font-size: 16px;
+}
+
+.chapter-intro-carryover {
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #eef7f0;
+  border: 1px dashed #4f8a5b;
+  margin-bottom: 18px;
+  font-size: 13px;
+  color: #2e6b3c;
+  line-height: 1.7;
+}
+
+.chapter-intro-carryover strong {
+  color: #13272b;
+}
+
+.chapter-intro-start {
+  margin-top: 8px;
+}
+
+.branch-event-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.branch-event-icon {
+  font-size: 40px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.branch-event-header h3 {
+  margin: 0;
+  font-size: 22px;
+  color: #6267a6;
+}
+
+.branch-event-day-info {
+  font-size: 13px;
+  color: #8e7a22;
+  font-weight: 700;
+}
+
+.branch-event-desc {
+  margin: 0 0 20px;
+  line-height: 1.8;
+  color: #3e5f65;
+  font-size: 15px;
+}
+
+.branch-event-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.branch-event-option {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: left;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: #f6fbfb;
+  border: 2px solid #c5d7da;
+  color: #13272b;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+}
+
+.branch-event-option:hover {
+  border-color: #6267a6;
+  background: #f0f0fa;
+  transform: translateX(4px);
+}
+
+.branch-event-option strong {
+  font-size: 16px;
+  margin-bottom: 2px;
+}
+
+.branch-event-option-desc {
+  font-size: 13px;
+  color: #63868c;
+  line-height: 1.5;
+  font-weight: 400;
+}
+
+.branch-event-option-impact {
+  font-size: 12px;
+  font-weight: 700;
+  color: #6267a6;
+  background: #eeeef8;
+  padding: 4px 8px;
+  border-radius: 6px;
+  display: inline-block;
+  margin-top: 4px;
+  align-self: flex-start;
+}
+
+.chapter-settle-card h2 {
+  font-size: 24px;
+  color: #4f8a5b;
+  margin-bottom: 16px;
+}
+
+.chapter-settle-summary {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.chapter-settle-stat {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #e8f1f2;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  color: #3e5f65;
+}
+
+.chapter-settle-stat strong {
+  font-size: 18px;
+  color: #13272b;
+}
+
+.chapter-settle-stat.pass strong {
+  color: #4f8a5b;
+}
+
+.chapter-settle-stat.fail strong {
+  color: #d14c3f;
+}
+
+.chapter-settle-carryover {
+  padding: 14px;
+  border-radius: 8px;
+  background: #fff8ee;
+  border: 1px dashed #e0c070;
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: #725a1a;
+  line-height: 1.7;
+}
+
+.chapter-settle-carryover strong {
+  color: #13272b;
+}
+
+.campaign-ending-icon {
+  font-size: 64px;
+  line-height: 1;
+  margin-bottom: 12px;
+}
+
+.campaign-ending-card h2 {
+  font-size: 28px;
+  color: #13272b;
+  margin-bottom: 8px;
+}
+
+.campaign-ending-rank {
+  display: inline-block;
+  padding: 4px 16px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 16px;
+}
+
+.campaign-ending-rank.rank-s {
+  background: #fff3d6;
+  color: #725a1a;
+}
+
+.campaign-ending-rank.rank-a {
+  background: #d5efd9;
+  color: #2e6b3c;
+}
+
+.campaign-ending-rank.rank-b {
+  background: #e8f1f2;
+  color: #3e5f65;
+}
+
+.campaign-ending-rank.rank-c {
+  background: #fbd8d5;
+  color: #8e2b22;
+}
+
+.campaign-ending-narrative {
+  text-align: left;
+  color: #3e5f65;
+  font-size: 15px;
+  line-height: 1.8;
+  margin: 0 0 18px;
+  padding: 16px;
+  border-radius: 10px;
+  background: #f6fbfb;
+  border-left: 4px solid #f2c14e;
+}
+
+.campaign-ending-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.campaign-ending-stat {
+  padding: 10px 8px;
+  border-radius: 8px;
+  background: #e8f1f2;
+}
+
+.campaign-ending-stat span {
+  display: block;
+  font-size: 11px;
+  color: #63868c;
+}
+
+.campaign-ending-stat strong {
+  font-size: 18px;
+  color: #13272b;
+}
+
+.campaign-ending-choices {
+  text-align: left;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #f0f0fa;
+  border-left: 3px solid #6267a6;
+  margin-bottom: 18px;
+  font-size: 13px;
+  color: #3e5f65;
+  line-height: 1.7;
+}
+
+.campaign-ending-choices .choice-label {
+  font-weight: 700;
+  color: #6267a6;
+}
+
+.mission-card.campaign-card .mission-card-head {
+  background: linear-gradient(135deg, #13272b 0%, #357a90 100%) !important;
+}
+
+.mission-card.campaign-card .mission-card-body {
+  position: relative;
+}
+
+.mission-card.campaign-card .mission-goal {
+  background: #13272b;
+  color: #f2c14e;
+}
+
+@media (max-width: 900px) {
+  .campaign-progress {
+    padding: 8px 12px;
+    gap: 8px;
+  }
+  .chapter-intro-objectives {
+    grid-template-columns: 1fr;
+  }
+  .chapter-settle-summary {
+    grid-template-columns: 1fr;
+  }
+  .campaign-ending-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

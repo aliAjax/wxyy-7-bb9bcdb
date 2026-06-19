@@ -13,6 +13,15 @@
         <p class="eyebrow">Polar Station Shift</p>
         <h1>极地科考站值班</h1>
       </div>
+      <div id="campaignProgress" class="campaign-progress hidden">
+        <span class="campaign-progress-label">剧情战役</span>
+        <div class="campaign-progress-track">
+          <div id="campaignChapter1" class="campaign-chapter-dot done">1</div>
+          <div class="campaign-chapter-line"></div>
+          <div id="campaignChapter2" class="campaign-chapter-dot">2</div>
+        </div>
+        <span id="campaignChapterName" class="campaign-chapter-name"></span>
+      </div>
     </header>
 
     <section id="missionDesk" class="mission-desk panel">
@@ -172,6 +181,57 @@
       </div>
       <p id="emergencyDesc" class="emergency-desc">事件描述</p>
       <div id="emergencyOptions" class="emergency-options"></div>
+    </div>
+  </div>
+
+  <div id="chapterIntroOverlay" class="chapter-intro-overlay hidden">
+    <div class="chapter-intro-mask"></div>
+    <div class="chapter-intro-card">
+      <div class="chapter-intro-badge" id="chapterIntroBadge">第一章</div>
+      <h2 id="chapterIntroTitle">章节标题</h2>
+      <p id="chapterIntroSubtitle" class="chapter-intro-subtitle"></p>
+      <div id="chapterIntroNarrative" class="chapter-intro-narrative"></div>
+      <div id="chapterIntroObjectives" class="chapter-intro-objectives"></div>
+      <div id="chapterIntroCarryover" class="chapter-intro-carryover hidden"></div>
+      <button id="chapterIntroStartBtn" type="button" class="primary chapter-intro-start">开始章节</button>
+    </div>
+  </div>
+
+  <div id="branchEventOverlay" class="branch-event-overlay hidden">
+    <div class="branch-event-mask"></div>
+    <div class="branch-event-card">
+      <div class="branch-event-header">
+        <span id="branchEventIcon" class="branch-event-icon">📜</span>
+        <div>
+          <h3 id="branchEventTitle">剧情分支</h3>
+          <span id="branchEventDayInfo" class="branch-event-day-info"></span>
+        </div>
+      </div>
+      <p id="branchEventDesc" class="branch-event-desc"></p>
+      <div id="branchEventOptions" class="branch-event-options"></div>
+    </div>
+  </div>
+
+  <div id="chapterSettleOverlay" class="chapter-settle-overlay hidden">
+    <div class="chapter-settle-mask"></div>
+    <div class="chapter-settle-card">
+      <h2 id="chapterSettleTitle">章节结算</h2>
+      <div id="chapterSettleSummary" class="chapter-settle-summary"></div>
+      <div id="chapterSettleCarryover" class="chapter-settle-carryover"></div>
+      <button id="chapterSettleNextBtn" type="button" class="primary">进入下一章</button>
+    </div>
+  </div>
+
+  <div id="campaignEndingOverlay" class="campaign-ending-overlay hidden">
+    <div class="campaign-ending-mask"></div>
+    <div class="campaign-ending-card">
+      <div id="campaignEndingIcon" class="campaign-ending-icon"></div>
+      <h2 id="campaignEndingTitle"></h2>
+      <div id="campaignEndingRank" class="campaign-ending-rank"></div>
+      <p id="campaignEndingNarrative" class="campaign-ending-narrative"></p>
+      <div id="campaignEndingStats" class="campaign-ending-stats"></div>
+      <div id="campaignEndingChoices" class="campaign-ending-choices"></div>
+      <button id="campaignEndingBtn" type="button" class="primary">返回任务选择台</button>
     </div>
   </div>
 

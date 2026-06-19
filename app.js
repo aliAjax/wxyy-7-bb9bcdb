@@ -62,6 +62,42 @@ const tutorialSkipBtn = document.getElementById("tutorialSkipBtn");
 const tutorialPrevBtn = document.getElementById("tutorialPrevBtn");
 const tutorialNextBtn = document.getElementById("tutorialNextBtn");
 
+const campaignProgressEl = document.getElementById("campaignProgress");
+const campaignChapter1El = document.getElementById("campaignChapter1");
+const campaignChapter2El = document.getElementById("campaignChapter2");
+const campaignChapterNameEl = document.getElementById("campaignChapterName");
+
+const chapterIntroOverlay = document.getElementById("chapterIntroOverlay");
+const chapterIntroBadge = document.getElementById("chapterIntroBadge");
+const chapterIntroTitle = document.getElementById("chapterIntroTitle");
+const chapterIntroSubtitle = document.getElementById("chapterIntroSubtitle");
+const chapterIntroNarrative = document.getElementById("chapterIntroNarrative");
+const chapterIntroObjectives = document.getElementById("chapterIntroObjectives");
+const chapterIntroCarryover = document.getElementById("chapterIntroCarryover");
+const chapterIntroStartBtn = document.getElementById("chapterIntroStartBtn");
+
+const branchEventOverlay = document.getElementById("branchEventOverlay");
+const branchEventIcon = document.getElementById("branchEventIcon");
+const branchEventTitle = document.getElementById("branchEventTitle");
+const branchEventDayInfo = document.getElementById("branchEventDayInfo");
+const branchEventDesc = document.getElementById("branchEventDesc");
+const branchEventOptions = document.getElementById("branchEventOptions");
+
+const chapterSettleOverlay = document.getElementById("chapterSettleOverlay");
+const chapterSettleTitle = document.getElementById("chapterSettleTitle");
+const chapterSettleSummary = document.getElementById("chapterSettleSummary");
+const chapterSettleCarryover = document.getElementById("chapterSettleCarryover");
+const chapterSettleNextBtn = document.getElementById("chapterSettleNextBtn");
+
+const campaignEndingOverlay = document.getElementById("campaignEndingOverlay");
+const campaignEndingIcon = document.getElementById("campaignEndingIcon");
+const campaignEndingTitle = document.getElementById("campaignEndingTitle");
+const campaignEndingRank = document.getElementById("campaignEndingRank");
+const campaignEndingNarrative = document.getElementById("campaignEndingNarrative");
+const campaignEndingStats = document.getElementById("campaignEndingStats");
+const campaignEndingChoices = document.getElementById("campaignEndingChoices");
+const campaignEndingBtn = document.getElementById("campaignEndingBtn");
+
 const ARCHIVE_KEY = "polar_station_archive";
 const ARCHIVE_LIMIT = 20;
 const TUTORIAL_KEY = "polar_station_tutorial_done";
@@ -379,6 +415,233 @@ const emergencyEvents = [
 
 const EMERGENCY_CHANCE = 0.4;
 
+const campaignChapters = [
+  {
+    id: "ch1",
+    name: "极夜初临",
+    subtitle: "极夜降临，科考站第一次面对长达数月的黑暗与孤独",
+    badge: "第一章",
+    narrative: "极夜终于降临。太阳沉入地平线以下，至少三个月不会升起。四名队员必须在漫长的黑暗中维持科考站运转，完成基地委派的科研任务，同时应对极寒、暴风雪和精神压力的三重考验。\n\n这是你们第一次独自面对极夜。通讯偶尔能接通基地，但大部分时间只有风声和冰层的呻吟。队长的叮嘱犹在耳畔：「撑过前七天，后面的日子才有节奏。」",
+    days: 7,
+    initial: { fuel: 85, morale: 80, food: 75, data: 0 },
+    allocations: { heat: 3, comm: 2, lab: 4, food: 3 },
+    weatherWeight: { "暴风雪": 3, "低温": 2, "极夜静风": 2, "晴朗": 1 },
+    dataGoal: 80,
+    objectives: [
+      { id: "fuel", name: "柴油储备≥25", min: 25, icon: "⛽" },
+      { id: "morale", name: "士气稳定≥35", min: 35, icon: "💪" },
+      { id: "data", name: "科研成果≥80", min: 80, icon: "📊" }
+    ],
+    branchEvents: [
+      {
+        day: 3,
+        id: "ch1_anomaly",
+        name: "冰芯深层异常",
+        icon: "🔬",
+        desc: "孙研究员在分析深层冰芯样本时发现了异常数据——冰芯中封存的远古气泡成分与已知记录不符，暗示着一个未知的气候事件。这个发现可能是重大突破，也可能只是仪器校准偏差。如何处理？",
+        options: [
+          {
+            id: "study_deep",
+            label: "投入资源深入研究",
+            desc: "调配更多实验电力和通信带宽，全力解析异常数据。科研产出会增加，但其他系统可能捉襟见肘。",
+            impact: "开启科研路线：后续章节实验效率提升，但暴风雪更频繁",
+            effects: { data: 12, fuel: -5, morale: 3 },
+            routeTag: "research"
+          },
+          {
+            id: "secure_store",
+            label: "封存样本，优先生存",
+            desc: "将异常样本妥善封存，集中精力维持站内运转。稳健但可能错过重大发现。",
+            impact: "开启生存路线：后续章节天气更稳定，但科研产出偏低",
+            effects: { data: 3, fuel: 3, morale: -2 },
+            routeTag: "survival"
+          }
+        ]
+      },
+      {
+        day: 5,
+        id: "ch1_signal",
+        name: "未知频段信号",
+        icon: "📡",
+        desc: "钱通讯员在例行扫描时截获了一段微弱但规律性极强的信号，来自东南方向约120公里的位置。信号模式不像自然源，但也不是已知的基地频率。可能是另一支科考队，也可能是设备误读。暴风雪即将来临，现在出发搜救风险极大。",
+        options: [
+          {
+            id: "investigate",
+            label: "冒着暴风雪搜救",
+            desc: "组织小队携带通讯设备前往信号源搜救。成功将获得强力盟友和情报，失败则损失惨重。",
+            impact: "救援路线：如成功，第二章获得额外队员和物资；失败则人员受损",
+            effects: { fuel: -8, morale: 5, data: 6 },
+            routeTag: "rescue"
+          },
+          {
+            id: "ignore",
+            label: "记录坐标，等待天气好转",
+            desc: "将信号坐标记录在案，待暴风雪过后再计划行动。稳妥但可能错过黄金救援窗口。",
+            impact: "等待路线：第二章收到神秘补给，但信号源可能已消失",
+            effects: { data: 4, morale: -4 },
+            routeTag: "wait"
+          }
+        ]
+      }
+    ],
+    settlementPass: "极夜第一周艰难度过。虽然挑战重重，但站内运转基本正常，队员们也逐渐适应了黑暗中的节奏。基地发来简短电报：「收到你们的数据包，继续保持。换班队会按时出发。」",
+    settlementFail: "极夜第一周的考验太过严酷，资源严重不足。队员们身心俱疲，站内秩序岌岌可危。基地回电简短而焦急：「收到求援信号。尽可能维持，我们正在协调。」"
+  },
+  {
+    id: "ch2",
+    name: "冰下回声",
+    subtitle: "冰层之下传来不可思议的信号，真相与生存的抉择",
+    badge: "第二章",
+    narrative: "极夜第一周的煎熬刚刚过去，更大的挑战便接踵而至。\n\n根据你在第一章的抉择，冰下的秘密正在逐步揭开。那个异常信号的真实来源、冰芯深层的不明成分……所有线索都指向冰盖下方某个尚未被人类触及的空间。\n\n但暴风雪并未停歇，物资消耗远超预期，队员们的精神状态也在持续下滑。你必须在新一轮危机中做出更艰难的选择——是追索真相，还是守住底线？",
+    days: 7,
+    getInitial: function(carryover, choices) {
+      const base = {
+        fuel: Math.max(30, Math.round((carryover.fuel || 50) * 0.7)),
+        morale: Math.max(25, Math.round((carryover.morale || 50) * 0.8)),
+        food: Math.max(25, Math.round((carryover.food || 50) * 0.75)),
+        data: Math.round((carryover.data || 0) * 0.5)
+      };
+      if (choices.ch1_signal === "investigate") {
+        base.fuel = Math.max(base.fuel, 35);
+        base.morale = Math.min(100, base.morale + 8);
+      }
+      if (choices.ch1_signal === "ignore") {
+        base.food = Math.min(100, base.food + 10);
+        base.fuel = Math.min(100, base.fuel + 5);
+      }
+      return base;
+    },
+    allocations: { heat: 3, comm: 3, lab: 3, food: 3 },
+    getWeatherWeight: function(choices) {
+      if (choices.ch1_anomaly === "study_deep") {
+        return { "暴风雪": 4, "低温": 2, "极夜静风": 1, "晴朗": 1 };
+      }
+      return { "暴风雪": 1, "低温": 2, "极夜静风": 3, "晴朗": 2 };
+    },
+    dataGoal: 120,
+    getObjectives: function(choices) {
+      const objs = [
+        { id: "fuel", name: "柴油储备≥15", min: 15, icon: "⛽" },
+        { id: "morale", name: "士气≥20", min: 20, icon: "💪" },
+        { id: "data", name: "科研成果≥120", min: 120, icon: "📊" }
+      ];
+      if (choices.ch1_anomaly === "study_deep") {
+        objs.push({ id: "commChain", name: "完成通信任务链", min: 1, icon: "📡" });
+      }
+      return objs;
+    },
+    branchEvents: [
+      {
+        day: 2,
+        id: "ch2_contact",
+        name: "冰下回声",
+        icon: "🏔️",
+        desc: "通信天线持续接收到来自冰盖下方的规律脉冲信号，频率与第一章发现的异常数据高度吻合。经过分析，孙研究员认为信号来自冰下约800米处的空洞空间，那里可能存在着一个被冰封数万年的微生态环境。\n\n这是一个前所未有的发现，但深入调查需要大量资源和精力。",
+        options: [
+          {
+            id: "explore",
+            label: "部署钻探，深入冰下",
+            desc: "动用全部资源尝试钻探至信号源，这可能改写极地科考历史。但钻探会大量消耗柴油，且暴风雪期间风险极高。",
+            impact: "探索路线：大量消耗资源，但若成功将获得最高评级",
+            effects: { fuel: -10, data: 15, morale: 6 },
+            routeTag: "explore"
+          },
+          {
+            id: "monitor",
+            label: "远程监测，积累数据",
+            desc: "不冒险钻探，利用通信和实验系统持续监测并记录信号变化。安全但进展缓慢。",
+            impact: "监测路线：稳步积累数据，安全性更高",
+            effects: { data: 8, morale: -2 },
+            routeTag: "monitor"
+          }
+        ]
+      },
+      {
+        day: 5,
+        id: "ch2_evacuate",
+        name: "最终抉择",
+        icon: "⚠️",
+        desc: "基地突然发来紧急加密电报：冰架活动加剧，你所在的区域可能在72小时内发生大规模冰裂。基地建议立即启动撤离程序，但撤离意味着放弃所有未完成的实验和样本。\n\n你也可以选择留下来完成最后的关键实验——如果冰裂没有发生，你将带着完整的科学成果凯旋；但如果冰裂真的到来……",
+        options: [
+          {
+            id: "stay",
+            label: "留下完成实验",
+            desc: "赌冰裂不会发生，坚持完成最后的科研目标。高风险但可能获得最高科学成就。",
+            impact: "留守路线：最终评分大幅提升，但失败结局更严重",
+            effects: { data: 10, morale: 8, fuel: -5 },
+            routeTag: "stay"
+          },
+          {
+            id: "evacuate",
+            label: "立即撤离，保全人员",
+            desc: "安全第一，打包所有可携带的样本和数据撤离。虽然科研目标未能全部完成，但全队平安。",
+            impact: "撤离路线：保证人员安全，获得稳定评价",
+            effects: { morale: 10, food: 5, data: -8 },
+            routeTag: "evacuate"
+          }
+        ]
+      }
+    ],
+    getSettlementPass: function(choices) {
+      if (choices.ch2_evacuate === "evacuate") {
+        return "你做出了艰难但明智的决定——撤离。虽然部分实验未完成，但所有队员安全脱险，已收集的数据和样本也得到妥善保存。直升机在暴风雪间隙降落，接走了全体队员。基地指挥官在电话里说：「人员安全永远是第一位的。你们做得很对。」";
+      }
+      return "冰裂的警告最终没有成为现实，你的坚持换来了丰厚的回报。冰下空洞的信号数据完整记录，冰芯异常的分析报告也全部完成。当救援直升机终于降临时，你手里握着足以改写极地科考史的成果。";
+    },
+    getSettlementFail: function(choices) {
+      if (choices.ch2_evacuate === "stay") {
+        return "你选择了留下，但冰裂比预期来得更早。站房剧烈晃动，所有队员不得不在零下四十度的暴风雪中紧急撤离到安全区。大量设备和样本被遗弃在崩塌区域。幸运的是，所有人都活了下来——但这代价太大了。";
+      }
+      return "第二章的考验远超预期，资源耗尽，队员状态崩溃。基地紧急协调了一次非常规撤离，直升机在暴风雪中冒险降落。你们活着离开了，但几乎什么都没带走。";
+    }
+  }
+];
+
+const campaignEndings = [
+  {
+    id: "aurora",
+    name: "极光之路",
+    rank: "S",
+    rankClass: "rank-s",
+    icon: "🌌",
+    condition: function(score, choices, stats) {
+      return score >= 280 && choices.ch1_anomaly === "study_deep" && choices.ch2_contact === "explore" && stats.commComplete;
+    },
+    narrative: "你的冒险精神和对真理的执着追求，最终换来了人类科学史上最辉煌的极地发现。冰下空洞中封存的远古微生物群落证明：生命在极端条件下的韧性远超想象。\n\n你的论文登上了《Nature》封面，全球媒体称你们为「冰原先驱者」。极地科考站因此获得了空前的经费支持，新一代科考队将在你的发现基础上继续深入。\n\n当极夜结束，第一缕极光在天际绽放时，你站在站房外，看着那片曾经只有黑暗的天空——你知道，这光芒里有你点燃的一份。"
+  },
+  {
+    id: "guardian",
+    name: "冰原守望",
+    rank: "A",
+    rankClass: "rank-a",
+    icon: "🛡️",
+    condition: function(score, choices, stats) {
+      return score >= 200 && (choices.ch1_signal === "investigate" || choices.ch2_evacuate === "evacuate");
+    },
+    narrative: "在极端环境中，你选择了守护——守护队员的生命，守护与外界失联者的希望，守护作为科考人员最基本的责任感。\n\n虽然科研成果并非最顶尖，但你营救了冰原上被困的同行，或者在危险来临时做出了保全所有人的决定。基地在嘉奖令中写道：「在极端条件下将人员安全置于首位的指挥官，才是真正的极地守望者。」\n\n极夜终将过去，但你留下的精神遗产会永远铭刻在这片冰原上。"
+  },
+  {
+    id: "lonely",
+    name: "暗夜独行",
+    rank: "B",
+    rankClass: "rank-b",
+    icon: "🌑",
+    condition: function(score, choices, stats) {
+      return score >= 120;
+    },
+    narrative: "极夜终于结束了，但代价沉重。你活了下来，也带回了一些科研成果，但过程中有太多遗憾——错过的信号、未能营救的同行、濒临崩溃的队员状态。\n\n你的报告被基地归档，不算出色也不算失败。在返程的直升机上，你望着那片渐行渐远的冰原，心中五味杂陈。也许下一次，你会做出不同的选择。\n\n但至少，你们都还活着。这本身就是一种胜利。"
+  },
+  {
+    id: "frozen",
+    name: "冰封遗志",
+    rank: "C",
+    rankClass: "rank-c",
+    icon: "💀",
+    condition: function() { return true; },
+    narrative: "这次极夜值班的结局是沉重的。资源耗尽、士气崩溃、科研几乎停滞——你带回来的只有疲惫和遗憾。\n\n基地对这次任务的评级是「不合格」。你需要花很长时间来消化这次经历，队员们也各自选择了不同的道路。\n\n但即使在最黑暗的时刻，你收集到的那一点数据和样本仍然被封存在基地档案馆里。也许有一天，会有人从这些残缺的记录中发现价值。冰封的不仅是冰芯，还有你没有完成的意志。"
+  }
+];
+
 const commChains = [
   {
     id: "supply_relay",
@@ -442,6 +705,9 @@ let state;
 let tutorialActive = false;
 let tutorialCurrentStep = 0;
 let emergencyPending = null;
+
+let campaignState = null;
+let branchEventPending = null;
 
 const tutorialSteps = [
   {
@@ -721,6 +987,34 @@ function freshState() {
   };
 }
 
+function createCampaignState() {
+  return {
+    active: true,
+    chapterIndex: 0,
+    choices: {},
+    chapterOutcomes: [],
+    triggeredBranches: [],
+    labEfficiencyBonus: 0,
+    weatherWeightOverride: null
+  };
+}
+
+function getCampaignChapter() {
+  if (!campaignState || !campaignState.active) return null;
+  return campaignChapters[campaignState.chapterIndex] || null;
+}
+
+function getCampaignWeatherWeight() {
+  if (!campaignState || !campaignState.active) return null;
+  const chapter = getCampaignChapter();
+  if (!chapter) return null;
+  if (campaignState.weatherWeightOverride) return campaignState.weatherWeightOverride;
+  if (typeof chapter.getWeatherWeight === "function") {
+    return chapter.getWeatherWeight(campaignState.choices);
+  }
+  return chapter.weatherWeight || null;
+}
+
 function init() {
   state = freshState();
   startBtn.addEventListener("click", start);
@@ -735,6 +1029,31 @@ function init() {
 
 function renderMissionCards() {
   missionCardsEl.innerHTML = "";
+
+  const campaignCard = document.createElement("div");
+  campaignCard.className = "mission-card campaign-card";
+  campaignCard.dataset.missionId = "campaign";
+  campaignCard.innerHTML = `
+    <div class="mission-card-head" style="background:linear-gradient(135deg,#13272b 0%,#357a90 100%)">
+      <span class="mission-tag">剧情战役</span>
+      <h3>极夜征途</h3>
+    </div>
+    <div class="mission-card-body">
+      <p class="mission-card-desc">分章节剧情模式，你的每一个选择都将影响后续章节的天气、资源和故事走向。两章完整剧情，四种不同结局。</p>
+      <div class="mission-stats">
+        <span>章节<strong>2</strong></span>
+        <span>柴油<strong>85</strong></span>
+        <span>士气<strong>80</strong></span>
+        <span>食物<strong>75</strong></span>
+      </div>
+      <div class="mission-goal">
+        目标：完成两章剧情，达成最佳结局
+      </div>
+    </div>
+  `;
+  campaignCard.addEventListener("click", () => selectMission("campaign"));
+  missionCardsEl.appendChild(campaignCard);
+
   missions.forEach((mission) => {
     const card = document.createElement("div");
     card.className = "mission-card";
@@ -768,14 +1087,26 @@ function selectMission(missionId) {
     el.classList.toggle("selected", el.dataset.missionId === missionId);
   });
   startBtn.disabled = false;
-  const mission = missions.find((m) => m.id === missionId);
-  addLog(`已选择任务：${mission.name}。`);
+  if (missionId === "campaign") {
+    startBtn.textContent = "确认「极夜征途」剧情战役";
+    addLog("已选择剧情战役：极夜征途。");
+  } else {
+    const mission = missions.find((m) => m.id === missionId);
+    addLog(`已选择任务：${mission.name}。`);
+  }
   render();
 }
 
 function start() {
   if (!state.selectedMissionId) return;
+
+  if (state.selectedMissionId === "campaign") {
+    startCampaign();
+    return;
+  }
+
   const mission = missions.find((m) => m.id === state.selectedMissionId);
+  campaignState = null;
   state = {
     started: true,
     mission: mission,
@@ -802,6 +1133,7 @@ function start() {
   samplesPanelEl.classList.remove("hidden");
   commPanelEl.classList.remove("hidden");
   controlsPanelEl.classList.remove("hidden");
+  campaignProgressEl.classList.add("hidden");
   autoAssignCrew();
   render();
   setTimeout(() => {
@@ -810,6 +1142,168 @@ function start() {
       startTutorial();
     }
   }, 50);
+}
+
+function startCampaign() {
+  campaignState = createCampaignState();
+  missionDeskEl.classList.add("hidden");
+  showChapterIntro(0);
+}
+
+function showChapterIntro(chapterIndex) {
+  const chapter = campaignChapters[chapterIndex];
+  if (!chapter) return;
+
+  chapterIntroBadge.textContent = chapter.badge;
+  chapterIntroTitle.textContent = chapter.name;
+  chapterIntroSubtitle.textContent = chapter.subtitle;
+  chapterIntroNarrative.innerHTML = chapter.narrative.split("\n").map(p => p ? `<p style="margin:0 0 8px">${p}</p>` : "").join("");
+
+  const objectivesEl = chapterIntroObjectives;
+  objectivesEl.innerHTML = "";
+  const objectives = typeof chapter.getObjectives === "function"
+    ? chapter.getObjectives(campaignState.choices)
+    : chapter.objectives;
+  if (objectives) {
+    objectives.forEach((obj) => {
+      const item = document.createElement("div");
+      item.className = "chapter-obj-item";
+      item.innerHTML = `<span class="obj-icon">${obj.icon}</span>${obj.name}`;
+      objectivesEl.appendChild(item);
+    });
+  }
+
+  if (chapterIndex > 0 && campaignState.chapterOutcomes.length > 0) {
+    chapterIntroCarryover.classList.remove("hidden");
+    const prev = campaignState.chapterOutcomes[campaignState.chapterOutcomes.length - 1];
+    let nextInitial;
+    if (typeof chapter.getInitial === "function") {
+      nextInitial = chapter.getInitial(prev, campaignState.choices);
+    } else {
+      nextInitial = chapter.initial;
+    }
+    const parts = [];
+    parts.push(`柴油 ${prev.fuel} → ${nextInitial ? nextInitial.fuel : "?"}`);
+    parts.push(`士气 ${prev.morale} → ${nextInitial ? nextInitial.morale : "?"}`);
+    parts.push(`食物 ${prev.food} → ${nextInitial ? nextInitial.food : "?"}`);
+    parts.push(`数据 ${prev.data} → ${nextInitial ? nextInitial.data : "?"}`);
+    chapterIntroCarryover.innerHTML = `<strong>上一章资源结转：</strong><br>${parts.join("　｜　")}`;
+  } else {
+    chapterIntroCarryover.classList.add("hidden");
+  }
+
+  chapterIntroStartBtn.onclick = function() {
+    chapterIntroOverlay.classList.add("hidden");
+    startCampaignChapter(chapterIndex);
+  };
+
+  chapterIntroOverlay.classList.remove("hidden");
+}
+
+function startCampaignChapter(chapterIndex) {
+  const chapter = campaignChapters[chapterIndex];
+  if (!chapter) return;
+
+  campaignState.chapterIndex = chapterIndex;
+  campaignState.triggeredBranches = [];
+
+  let initial, weatherWeight, dataGoal;
+
+  if (chapterIndex === 0) {
+    initial = { ...chapter.initial };
+    dataGoal = chapter.dataGoal;
+  } else {
+    const carryover = campaignState.chapterOutcomes.length > 0
+      ? campaignState.chapterOutcomes[campaignState.chapterOutcomes.length - 1]
+      : { fuel: 50, morale: 50, food: 50, data: 0 };
+    initial = typeof chapter.getInitial === "function"
+      ? chapter.getInitial(carryover, campaignState.choices)
+      : { ...chapter.initial };
+    dataGoal = chapter.dataGoal;
+  }
+
+  weatherWeight = typeof chapter.getWeatherWeight === "function"
+    ? chapter.getWeatherWeight(campaignState.choices)
+    : chapter.weatherWeight;
+
+  if (campaignState.weatherWeightOverride) {
+    weatherWeight = campaignState.weatherWeightOverride;
+  }
+
+  const fakeMission = {
+    id: "campaign_ch" + chapterIndex,
+    name: chapter.name + "（剧情战役）",
+    tag: chapter.badge,
+    desc: chapter.subtitle,
+    color: "#357a90",
+    days: chapter.days,
+    initial: initial,
+    allocations: { ...chapter.allocations },
+    dataGoal: dataGoal,
+    dataPerLab: 0,
+    weatherWeight: weatherWeight,
+    intro: chapter.narrative.split("\n")[0],
+    successText: function() { return ""; },
+    failText: function() { return ""; }
+  };
+
+  const carryoverCrew = (chapterIndex > 0 && campaignState.chapterOutcomes.length > 0)
+    ? campaignState.chapterOutcomes[campaignState.chapterOutcomes.length - 1].crew
+    : null;
+  const carryoverEquipment = (chapterIndex > 0 && campaignState.chapterOutcomes.length > 0)
+    ? campaignState.chapterOutcomes[campaignState.chapterOutcomes.length - 1].equipment
+    : null;
+  const carryoverSamples = (chapterIndex > 0 && campaignState.chapterOutcomes.length > 0)
+    ? campaignState.chapterOutcomes[campaignState.chapterOutcomes.length - 1].samples
+    : null;
+
+  state = {
+    started: true,
+    mission: fakeMission,
+    selectedMissionId: "campaign",
+    day: 1,
+    fuel: initial.fuel,
+    morale: initial.morale,
+    food: initial.food,
+    data: initial.data,
+    weather: pickWeatherForMission(fakeMission),
+    allocations: { ...chapter.allocations },
+    nextDayEffects: null,
+    crew: carryoverCrew ? JSON.parse(JSON.stringify(carryoverCrew)) : createInitialCrew(),
+    equipment: carryoverEquipment ? JSON.parse(JSON.stringify(carryoverEquipment)) : createInitialEquipment(),
+    samples: carryoverSamples ? JSON.parse(JSON.stringify(carryoverSamples)) : createInitialSamples(),
+    sampleValueLostToday: {},
+    commChain: createInitialCommChain(),
+    log: [chapter.narrative.split("\n")[0]]
+  };
+
+  resultEl.classList.add("hidden");
+  crewPanelEl.classList.remove("hidden");
+  workshopPanelEl.classList.remove("hidden");
+  samplesPanelEl.classList.remove("hidden");
+  commPanelEl.classList.remove("hidden");
+  controlsPanelEl.classList.remove("hidden");
+  campaignProgressEl.classList.remove("hidden");
+  autoAssignCrew();
+  renderCampaignProgress();
+  render();
+}
+
+function renderCampaignProgress() {
+  if (!campaignState || !campaignState.active) {
+    campaignProgressEl.classList.add("hidden");
+    return;
+  }
+  campaignProgressEl.classList.remove("hidden");
+
+  const ch1State = campaignState.chapterIndex >= 1 ? "done" : "current";
+  const ch2State = campaignState.chapterIndex >= 2 ? "done" : campaignState.chapterIndex === 1 ? "current" : "";
+
+  campaignChapter1El.className = "campaign-chapter-dot " + ch1State;
+  campaignChapter2El.className = "campaign-chapter-dot " + ch2State;
+
+  const chapter = getCampaignChapter();
+  campaignChapterNameEl.textContent = chapter ? chapter.name : "";
 }
 
 function autoAssignCrew() {
@@ -835,12 +1329,16 @@ function autoAssignCrew() {
 }
 
 function pickWeatherForMission(mission) {
-  if (!mission.weatherWeight) {
+  let weatherWeight = mission.weatherWeight;
+  if (campaignState && campaignState.active && campaignState.weatherWeightOverride) {
+    weatherWeight = campaignState.weatherWeightOverride;
+  }
+  if (!weatherWeight) {
     return weatherDeck[Math.floor(Math.random() * weatherDeck.length)];
   }
   const weighted = [];
   weatherDeck.forEach((w) => {
-    const weight = mission.weatherWeight[w.name] || 1;
+    const weight = weatherWeight[w.name] || 1;
     for (let i = 0; i < weight; i++) weighted.push(w);
   });
   return weighted[Math.floor(Math.random() * weighted.length)];
@@ -882,6 +1380,10 @@ function calculateEquipmentEffects() {
   if (labEq.level >= 2) effects.labEfficiency += 0.2;
   if (labEq.level >= 3) effects.labEfficiency += 0.3;
   if (labEq.level >= 2) effects.details.push(`实验仪器Lv${labEq.level}，实验效率+${((labEq.level - 1) * 0.2 + (labEq.level >= 3 ? 0.1 : 0)).toFixed(1)}`);
+  if (campaignState && campaignState.labEfficiencyBonus > 0) {
+    effects.labEfficiency += campaignState.labEfficiencyBonus;
+    effects.details.push(`剧情加成：实验效率+${campaignState.labEfficiencyBonus}`);
+  }
 
   const foodEq = state.equipment.food;
   if (foodEq.durability < 60) {
@@ -1194,6 +1696,18 @@ function endDay() {
     return;
   }
 
+  if (campaignState && campaignState.active) {
+    const chapter = getCampaignChapter();
+    if (chapter && chapter.branchEvents) {
+      const branch = chapter.branchEvents.find((b) => b.day === state.day && !campaignState.triggeredBranches.includes(b.id));
+      if (branch) {
+        showBranchEvent(branch);
+        render();
+        return;
+      }
+    }
+  }
+
   if (Math.random() < EMERGENCY_CHANCE) {
     const evt = emergencyEvents[Math.floor(Math.random() * emergencyEvents.length)];
     addLog(`⚠ 突发事件：${evt.name}！`);
@@ -1325,9 +1839,290 @@ function randomEvent() {
   return events[Math.floor(Math.random() * events.length)]();
 }
 
+function showBranchEvent(event) {
+  branchEventPending = event;
+  branchEventIcon.textContent = event.icon;
+  branchEventTitle.textContent = event.name;
+  branchEventDesc.textContent = event.desc;
+  branchEventDayInfo.textContent = `第${state.day}天 · 剧情分支`;
+
+  branchEventOptions.innerHTML = "";
+  event.options.forEach((opt, idx) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "branch-event-option";
+    btn.innerHTML = `<strong>${opt.label}</strong><span class="branch-event-option-desc">${opt.desc}</span><span class="branch-event-option-impact">${opt.impact}</span>`;
+    btn.addEventListener("click", () => handleBranchChoice(idx));
+    branchEventOptions.appendChild(btn);
+  });
+
+  branchEventOverlay.classList.remove("hidden");
+}
+
+function handleBranchChoice(idx) {
+  const event = branchEventPending;
+  const opt = event.options[idx];
+  const fx = opt.effects;
+
+  if (fx.fuel) state.fuel += fx.fuel;
+  if (fx.food) state.food += fx.food;
+  if (fx.morale) state.morale += fx.morale;
+  if (fx.data) state.data += fx.data;
+
+  campaignState.choices[event.id] = opt.id;
+  campaignState.triggeredBranches.push(event.id);
+
+  if (opt.routeTag === "research") {
+    campaignState.labEfficiencyBonus = 0.2;
+  } else if (opt.routeTag === "survival") {
+    campaignState.weatherWeightOverride = { "暴风雪": 1, "低温": 2, "极夜静风": 3, "晴朗": 2 };
+  }
+
+  normalize();
+  addLog(`【剧情分支·${event.name}】选择「${opt.label}」— ${opt.impact}`);
+
+  branchEventPending = null;
+  branchEventOverlay.classList.add("hidden");
+
+  if (state.fuel <= 0 || state.food <= 0 || state.morale <= 0) {
+    finish(false);
+    return;
+  }
+
+  if (state.day >= state.mission.days) {
+    finish(true);
+    return;
+  }
+
+  state.day += 1;
+  state.weather = pickWeatherForMission(state.mission);
+  applyNextDayEffects();
+  normalize();
+  render();
+  setTimeout(refreshTutorialHighlight, 50);
+}
+
+function finishCampaignChapter(success) {
+  normalize();
+  const chapter = getCampaignChapter();
+  if (!chapter) return;
+
+  crewPanelEl.classList.add("hidden");
+  workshopPanelEl.classList.add("hidden");
+  samplesPanelEl.classList.add("hidden");
+  commPanelEl.classList.add("hidden");
+  controlsPanelEl.classList.add("hidden");
+
+  const sampleStats = calculateSampleTotalValue();
+
+  const outcome = {
+    chapterId: chapter.id,
+    chapterIndex: campaignState.chapterIndex,
+    success: success,
+    fuel: state.fuel,
+    morale: state.morale,
+    food: state.food,
+    data: state.data,
+    sampleValue: sampleStats.totalValue,
+    sampleIntegrity: sampleStats.avgIntegrity,
+    crew: JSON.parse(JSON.stringify(state.crew)),
+    equipment: JSON.parse(JSON.stringify(state.equipment)),
+    samples: JSON.parse(JSON.stringify(state.samples)),
+    commComplete: state.commChain.isComplete
+  };
+  campaignState.chapterOutcomes.push(outcome);
+
+  const objectives = typeof chapter.getObjectives === "function"
+    ? chapter.getObjectives(campaignState.choices)
+    : chapter.objectives;
+
+  let passCount = 0;
+  const objResults = objectives ? objectives.map((obj) => {
+    let val, passed;
+    if (obj.id === "commChain") {
+      val = state.commChain.isComplete ? 1 : 0;
+      passed = val >= obj.min;
+    } else {
+      val = state[obj.id] || 0;
+      passed = val >= obj.min;
+    }
+    if (passed) passCount++;
+    return { ...obj, val, passed };
+  }) : [];
+
+  const allObjectivesMet = passCount === objResults.length;
+
+  saveArchiveRecord({
+    success: success && allObjectivesMet,
+    missionName: chapter.name + "（剧情战役）",
+    day: state.day,
+    fuel: state.fuel,
+    food: state.food,
+    morale: state.morale,
+    data: state.data,
+    sampleValue: sampleStats.totalValue,
+    sampleIntegrity: sampleStats.avgIntegrity,
+    score: Math.max(0, state.data + state.fuel + state.food + state.morale),
+    ending: success ? "章节通过" : "章节失败"
+  });
+
+  if (campaignState.chapterIndex >= campaignChapters.length - 1) {
+    showCampaignEnding(success, allObjectivesMet);
+  } else {
+    showChapterSettlement(chapter, success, allObjectivesMet, objResults, outcome);
+  }
+}
+
+function showChapterSettlement(chapter, success, allObjectivesMet, objResults, outcome) {
+  chapterSettleTitle.textContent = `${chapter.badge}「${chapter.name}」结算`;
+
+  const summaryEl = chapterSettleSummary;
+  summaryEl.innerHTML = "";
+
+  const stats = [
+    { label: "柴油", val: outcome.fuel },
+    { label: "士气", val: outcome.morale },
+    { label: "食物", val: outcome.food },
+    { label: "科研数据", val: outcome.data },
+    { label: "样本价值", val: outcome.sampleValue },
+    { label: "通信完成", val: outcome.commComplete ? "✅" : "❌" }
+  ];
+  stats.forEach((s) => {
+    const el = document.createElement("div");
+    el.className = "chapter-settle-stat";
+    el.innerHTML = `<span>${s.label}</span><strong>${s.val}</strong>`;
+    summaryEl.appendChild(el);
+  });
+
+  objResults.forEach((obj) => {
+    const el = document.createElement("div");
+    el.className = `chapter-settle-stat ${obj.passed ? "pass" : "fail"}`;
+    el.innerHTML = `<span>${obj.icon} ${obj.name}</span><strong>${obj.passed ? "✅ 达成" : "❌ 未达成"}${typeof obj.val === "number" ? ` (${obj.val})` : ""}</strong>`;
+    summaryEl.appendChild(el);
+  });
+
+  const settleText = success
+    ? (typeof chapter.settlementPass === "function" ? chapter.settlementPass(campaignState.choices) : chapter.settlementPass)
+    : (typeof chapter.settlementFail === "function" ? chapter.settlementFail(campaignState.choices) : chapter.settlementFail);
+
+  const nextChapter = campaignChapters[campaignState.chapterIndex + 1];
+  let carryoverText = "";
+  if (nextChapter) {
+    const nextInitial = typeof nextChapter.getInitial === "function"
+      ? nextChapter.getInitial(outcome, campaignState.choices)
+      : nextChapter.initial;
+    carryoverText = `<strong>下一章「${nextChapter.name}」开局资源：</strong><br>`;
+    carryoverText += `柴油 ${nextInitial.fuel}　士气 ${nextInitial.morale}　食物 ${nextInitial.food}　数据 ${nextInitial.data}<br>`;
+    carryoverText += `<br>${settleText}`;
+  } else {
+    carryoverText = settleText;
+  }
+
+  chapterSettleCarryover.innerHTML = carryoverText;
+
+  chapterSettleNextBtn.textContent = nextChapter ? `进入${nextChapter.badge}「${nextChapter.name}」` : "查看结局";
+  chapterSettleNextBtn.onclick = function() {
+    chapterSettleOverlay.classList.add("hidden");
+    if (nextChapter) {
+      showChapterIntro(campaignState.chapterIndex + 1);
+    }
+  };
+
+  chapterSettleOverlay.classList.remove("hidden");
+}
+
+function showCampaignEnding(lastChapterSuccess, allObjectivesMet) {
+  const totalScore = campaignState.chapterOutcomes.reduce((sum, o) => {
+    return sum + o.data + o.fuel + o.food + o.morale;
+  }, 0);
+
+  const commComplete = campaignState.chapterOutcomes.some((o) => o.commComplete);
+  const stats = { commComplete: commComplete };
+
+  let ending = campaignEndings[campaignEndings.length - 1];
+  for (let i = 0; i < campaignEndings.length - 1; i++) {
+    if (campaignEndings[i].condition(totalScore, campaignState.choices, stats)) {
+      ending = campaignEndings[i];
+      break;
+    }
+  }
+
+  campaignEndingIcon.textContent = ending.icon;
+  campaignEndingTitle.textContent = ending.name;
+  campaignEndingRank.textContent = `${ending.rank} 级评价`;
+  campaignEndingRank.className = `campaign-ending-rank ${ending.rankClass}`;
+  campaignEndingNarrative.innerHTML = ending.narrative.split("\n").map(p => p ? `<p style="margin:0 0 8px">${p}</p>` : "").join("");
+
+  const lastOutcome = campaignState.chapterOutcomes[campaignState.chapterOutcomes.length - 1];
+  const firstOutcome = campaignState.chapterOutcomes[0];
+  campaignEndingStats.innerHTML = `
+    <div class="campaign-ending-stat"><span>总评分</span><strong>${totalScore}</strong></div>
+    <div class="campaign-ending-stat"><span>第一章数据</span><strong>${firstOutcome.data}</strong></div>
+    <div class="campaign-ending-stat"><span>最终数据</span><strong>${lastOutcome.data}</strong></div>
+    <div class="campaign-ending-stat"><span>最终柴油</span><strong>${lastOutcome.fuel}</strong></div>
+    <div class="campaign-ending-stat"><span>最终士气</span><strong>${lastOutcome.morale}</strong></div>
+    <div class="campaign-ending-stat"><span>通信链路</span><strong>${commComplete ? "✅完成" : "❌未完成"}</strong></div>
+  `;
+
+  const choiceLabels = {
+    "ch1_anomaly": { "study_deep": "深入研究异常", "secure_store": "封存优先生存" },
+    "ch1_signal": { "investigate": "暴风雪搜救", "ignore": "记录坐标等待" },
+    "ch2_contact": { "explore": "部署钻探深入", "monitor": "远程监测积累" },
+    "ch2_evacuate": { "stay": "留下完成实验", "evacuate": "立即撤离保全" }
+  };
+
+  let choiceHtml = "<strong>你的抉择：</strong><br>";
+  Object.keys(campaignState.choices).forEach((key) => {
+    const choiceId = campaignState.choices[key];
+    const labels = choiceLabels[key] || {};
+    const label = labels[choiceId] || choiceId;
+    choiceHtml += `<span class="choice-label">▸ ${label}</span><br>`;
+  });
+  campaignEndingChoices.innerHTML = choiceHtml;
+
+  campaignEndingBtn.onclick = function() {
+    campaignEndingOverlay.classList.add("hidden");
+    campaignState = null;
+    state = freshState();
+    resultEl.classList.add("hidden");
+    missionDeskEl.classList.remove("hidden");
+    crewPanelEl.classList.add("hidden");
+    workshopPanelEl.classList.add("hidden");
+    samplesPanelEl.classList.add("hidden");
+    commPanelEl.classList.add("hidden");
+    controlsPanelEl.classList.add("hidden");
+    campaignProgressEl.classList.add("hidden");
+    renderMissionCards();
+    startBtn.disabled = true;
+    render();
+  };
+
+  saveArchiveRecord({
+    success: ending.rank === "S" || ending.rank === "A",
+    missionName: "极夜征途·" + ending.name,
+    day: campaignState.chapterOutcomes.reduce((sum, o) => sum + 7, 0),
+    fuel: lastOutcome.fuel,
+    food: lastOutcome.food,
+    morale: lastOutcome.morale,
+    data: lastOutcome.data,
+    sampleValue: lastOutcome.sampleValue,
+    sampleIntegrity: lastOutcome.sampleIntegrity,
+    score: totalScore,
+    ending: `${ending.rank}级·${ending.name}`
+  });
+
+  campaignEndingOverlay.classList.remove("hidden");
+}
+
 function finish(success) {
   state.started = false;
   normalize();
+
+  if (campaignState && campaignState.active) {
+    finishCampaignChapter(success);
+    return;
+  }
+
   const sampleStats = calculateSampleTotalValue();
   const sampleValue = sampleStats.totalValue;
   const sampleIntegrity = sampleStats.avgIntegrity;
@@ -1386,8 +2181,10 @@ function finish(success) {
   samplesPanelEl.classList.add("hidden");
   commPanelEl.classList.add("hidden");
   controlsPanelEl.classList.add("hidden");
+  campaignProgressEl.classList.add("hidden");
   document.getElementById("returnBtn").addEventListener("click", () => {
     state = freshState();
+    campaignState = null;
     resultEl.classList.add("hidden");
     missionDeskEl.classList.remove("hidden");
     crewPanelEl.classList.add("hidden");
@@ -1395,6 +2192,7 @@ function finish(success) {
     samplesPanelEl.classList.add("hidden");
     commPanelEl.classList.add("hidden");
     controlsPanelEl.classList.add("hidden");
+    campaignProgressEl.classList.add("hidden");
     renderMissionCards();
     startBtn.disabled = true;
     render();
@@ -1694,8 +2492,12 @@ function render() {
   if (state.started) {
     startBtn.textContent = "重新开始";
   } else if (state.selectedMissionId) {
-    const mission = missions.find((m) => m.id === state.selectedMissionId);
-    startBtn.textContent = `确认「${mission.name}」并进入电力分配`;
+    if (state.selectedMissionId === "campaign") {
+      startBtn.textContent = "确认「极夜征途」剧情战役";
+    } else {
+      const mission = missions.find((m) => m.id === state.selectedMissionId);
+      startBtn.textContent = `确认「${mission.name}」并进入电力分配`;
+    }
   } else {
     startBtn.textContent = "确认任务并进入电力分配";
   }
@@ -1732,6 +2534,20 @@ function render() {
     const eqPreview = previewEquipmentEffects();
     if (eqPreview) extraHints.push(eqPreview);
     const effectiveHeatReq = Math.max(1, state.weather.heat + calculateEquipmentEffects().heatReqAdj);
+    if (campaignState && campaignState.active) {
+      const chapter = getCampaignChapter();
+      if (chapter) {
+        const objectives = typeof chapter.getObjectives === "function"
+          ? chapter.getObjectives(campaignState.choices)
+          : chapter.objectives;
+        const objHints = objectives ? objectives.map(o => {
+          const val = o.id === "commChain" ? (state.commChain.isComplete ? "✅" : "❌") : (state[o.id] || 0);
+          return `${o.icon}${o.name}${typeof val === "number" ? ":" + val + "/≥" + o.min : val}`;
+        }).join(" ") : "";
+        extraHints.push(`📖 ${chapter.badge}「${chapter.name}」${objHints}`);
+      }
+      if (campaignState.labEfficiencyBonus > 0) extraHints.push(`🔬剧情加成：实验效率+${campaignState.labEfficiencyBonus}`);
+    }
     forecastEl.textContent = `今日${state.weather.name}，建议供暖至少${effectiveHeatReq}格（天气${state.weather.heat}+设备调整），通信至少${state.weather.comm}格。剩余电力投给实验产出样本（实验电力越高，样本类型越多、价值越高），食物储藏保障样本冷藏。${extraHints.length ? "【" + extraHints.join("，") + "】" : ""}`;
   } else {
     forecastEl.textContent = state.selectedMissionId
