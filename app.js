@@ -1461,9 +1461,14 @@ function pickWeatherForMission(mission) {
   }
   const weighted = [];
   weatherDeck.forEach((w) => {
-    const weight = weatherWeight[w.name] || 1;
-    for (let i = 0; i < weight; i++) weighted.push(w);
+    const weight = weatherWeight.hasOwnProperty(w.name) ? weatherWeight[w.name] : 1;
+    if (weight > 0) {
+      for (let i = 0; i < weight; i++) weighted.push(w);
+    }
   });
+  if (weighted.length === 0) {
+    return weatherDeck[Math.floor(Math.random() * weatherDeck.length)];
+  }
   return weighted[Math.floor(Math.random() * weighted.length)];
 }
 
@@ -2271,9 +2276,33 @@ function finish(success) {
     state.data + state.fuel + state.food + state.morale
   );
   const summary = { score, data: state.data, fuel: state.fuel, morale: state.morale, food: state.food, mission: state.mission, sampleValue, sampleIntegrity };
-  const resultText = actualSuccess
-    ? state.mission.successText(summary)
-    : state.mission.failText(summary);
+
+  let resultText;
+  if (actualSuccess) {
+    resultText = state.mission.successText(summary);
+  } else if (success) {
+    const unmet = [];
+    if (isCustom) {
+      if (state.mission.dataGoal && state.mission.dataGoal > 0 && state.data < state.mission.dataGoal) {
+        unmet.push(`科研成果未达标（${state.data}/${state.mission.dataGoal}）`);
+      }
+      if (state.mission.minFuel && state.fuel < state.mission.minFuel) {
+        unmet.push(`柴油未达最低要求（${state.fuel}/${state.mission.minFuel}）`);
+      }
+      if (state.mission.minMorale && state.morale < state.mission.minMorale) {
+        unmet.push(`士气未达最低要求（${state.morale}/${state.mission.minMorale}）`);
+      }
+      if (state.mission.minFood && state.food < state.mission.minFood) {
+        unmet.push(`食物未达最低要求（${state.food}/${state.mission.minFood}）`);
+      }
+    }
+    const unmetStr = unmet.length > 0 ? `未达成条件：${unmet.join('，')}。` : '';
+    resultText = isCustom
+      ? `自定义关卡「${state.mission.name}」撑过了${state.mission.days}天，但部分胜利条件未达成。${unmetStr}最终评分：${score}。`
+      : `撑过了${state.mission.days}天，但未达成全部胜利条件。最终评分：${score}。`;
+  } else {
+    resultText = state.mission.failText(summary);
+  }
   let sampleBreakdown = "";
   sampleTypes.forEach((t) => {
     const s = state.samples[t.id];
@@ -3663,20 +3692,16 @@ function saveEditorLevel() {
   }
 
   saveCustomLevels(saveLevels);
-  showValidationResult({ valid: true, errors: [], warnings: [] });
   renderSavedLevels();
   renderMissionCards();
 
-  setTimeout(() => {
-    const tempDiv = document.createElement("div");
-    tempDiv.className = "editor-validation success";
-    tempDiv.innerHTML = `<strong>✅ 已保存！</strong>关卡「${config.name}」已保存，可以在任务选择台中找到并游玩。`;
-    editorValidation.replaceWith(tempDiv);
-    tempDiv.id = "editorValidation";
-    setTimeout(() => {
-      tempDiv.classList.add("hidden");
-    }, 3000);
-  }, 100);
+  editorValidation.classList.remove("hidden");
+  editorValidation.className = "editor-validation success";
+  editorValidation.innerHTML = `<strong>✅ 已保存！</strong>关卡「${config.name}」已保存，可以在任务选择台中找到并游玩。`;
+
+  let saveHintTimer = setTimeout(() => {
+    editorValidation.classList.add("hidden");
+  }, 2500);
 }
 
 function renderSavedLevels() {
@@ -3739,6 +3764,7 @@ function getCustomEmergencyChance() {
 function checkCustomLevelVictoryConditions() {
   if (!state.mission || !state.mission.isCustom) return true;
   let ok = true;
+  if (state.mission.dataGoal && state.mission.dataGoal > 0 && state.data < state.mission.dataGoal) ok = false;
   if (state.mission.minFuel && state.fuel < state.mission.minFuel) ok = false;
   if (state.mission.minMorale && state.morale < state.mission.minMorale) ok = false;
   if (state.mission.minFood && state.food < state.mission.minFood) ok = false;
