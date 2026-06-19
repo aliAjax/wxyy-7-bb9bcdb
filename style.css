@@ -544,7 +544,7 @@ h2 {
 
 .crew-cards {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 12px;
   margin-bottom: 14px;
 }
@@ -720,7 +720,7 @@ h2 {
 
 @media (max-width: 900px) {
   .crew-cards {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, 1fr);
   }
   .crew-summary {
     grid-template-columns: repeat(3, 1fr);
@@ -856,6 +856,169 @@ h2 {
   display: none;
 }
 
+.workshop-panel {
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid #8fa9ae;
+  border-radius: 8px;
+  background: #f6fbfb;
+}
+
+.workshop-tip {
+  font-size: 12px;
+  color: #63868c;
+  font-weight: 400;
+}
+
+.equipment-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.eq-card {
+  padding: 14px;
+  border-radius: 10px;
+  background: #fff;
+  border: 2px solid #c5d7da;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: border-color 0.15s ease;
+}
+
+.eq-card.eq-heat { border-color: #e8b0a5; }
+.eq-card.eq-comm { border-color: #a5cfd9; }
+.eq-card.eq-lab { border-color: #bfc2e0; }
+.eq-card.eq-food { border-color: #b5d5bc; }
+
+.eq-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.eq-icon {
+  font-size: 28px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.eq-card-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.eq-name {
+  font-weight: 700;
+  font-size: 15px;
+  color: #13272b;
+}
+
+.eq-level {
+  font-size: 11px;
+  color: #63868c;
+}
+
+.eq-status {
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.eq-dur-bar-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.eq-dur-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #63868c;
+}
+
+.eq-dur-label strong {
+  color: #13272b;
+}
+
+.eq-dur-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: #e8f1f2;
+  overflow: hidden;
+}
+
+.eq-dur-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.25s ease;
+}
+
+.eq-effect {
+  font-size: 12px;
+  color: #3e5f65;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: #e8f1f2;
+  line-height: 1.5;
+}
+
+.eq-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.eq-repair-btn,
+.eq-upgrade-btn {
+  padding: 7px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  min-height: 32px;
+  cursor: pointer;
+  border: 1px solid #c5d7da;
+  background: #fff;
+  color: #13272b;
+  transition: all 0.12s ease;
+}
+
+.eq-repair-btn:hover:not(:disabled),
+.eq-upgrade-btn:hover:not(:disabled) {
+  border-color: #d14c3f;
+  background: #fff5f3;
+}
+
+.eq-repair-btn:disabled,
+.eq-upgrade-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.eq-upgrade-btn {
+  background: #13272b;
+  color: #fff;
+  border-color: transparent;
+}
+
+.eq-upgrade-btn:hover:not(:disabled) {
+  background: #1e3e45;
+  border-color: transparent;
+}
+
+.eq-upgrade-btn:disabled {
+  background: #8fa9ae;
+  border-color: transparent;
+}
+
+.eq-dur-indicator {
+  font-size: 10px;
+  font-weight: 700;
+  opacity: 0.85;
+}
+
 @media (max-width: 900px) {
   .mission-cards {
     grid-template-columns: repeat(2, 1fr);
@@ -870,6 +1033,16 @@ h2 {
   .allocations,
   .modules {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .equipment-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .equipment-cards {
+    grid-template-columns: 1fr;
   }
 }
 

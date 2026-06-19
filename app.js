@@ -26,6 +26,9 @@ const crewLabEl = document.getElementById("crewLab");
 const crewFoodEl = document.getElementById("crewFood");
 const crewRestEl = document.getElementById("crewRest");
 
+const workshopPanelEl = document.getElementById("workshopPanel");
+const equipmentCardsEl = document.getElementById("equipmentCards");
+
 const emergencyOverlay = document.getElementById("emergencyOverlay");
 const emergencyIcon = document.getElementById("emergencyIcon");
 const emergencyName = document.getElementById("emergencyName");
@@ -55,6 +58,15 @@ const systems = [
   { id: "lab", name: "实验", hint: "产出科考数据" },
   { id: "food", name: "食物储藏", hint: "低于2会损耗食物" }
 ];
+
+const equipmentDefs = [
+  { id: "heat", name: "供暖锅炉", icon: "🔥", baseDurLoss: 6, repairFuel: 5, upgradeFuel: 12, upgradeData: 10, maxLevel: 3 },
+  { id: "comm", name: "通信天线", icon: "📡", baseDurLoss: 5, repairFuel: 5, upgradeFuel: 10, upgradeData: 12, maxLevel: 3 },
+  { id: "lab", name: "实验仪器", icon: "🔬", baseDurLoss: 4, repairFuel: 6, upgradeFuel: 8, upgradeData: 15, maxLevel: 3 },
+  { id: "food", name: "冷库机组", icon: "🧊", baseDurLoss: 5, repairFuel: 5, upgradeFuel: 10, upgradeData: 8, maxLevel: 3 }
+];
+
+const weatherDurMultiplier = { "晴朗": 1.0, "低温": 1.3, "暴风雪": 1.8, "极夜静风": 1.1 };
 
 const stations = [
   { id: "heat", name: "供暖", icon: "🔥", desc: "维护暖气" },
@@ -91,6 +103,15 @@ const crewTemplates = [
     initialFatigue: 20,
     initialMood: 65,
     avatar: "👨‍🔬"
+  },
+  {
+    id: "li",
+    name: "李营养师",
+    specialty: "food",
+    specialtyName: "储藏专长",
+    initialFatigue: 12,
+    initialMood: 72,
+    avatar: "👩‍🍳"
   }
 ];
 
@@ -514,6 +535,12 @@ function createInitialCrew() {
   }));
 }
 
+function createInitialEquipment() {
+  const eq = {};
+  equipmentDefs.forEach((d) => { eq[d.id] = { durability: 100, level: 1 }; });
+  return eq;
+}
+
 function freshState() {
   const mission = missions.find((m) => m.id === "standard");
   return {
@@ -529,6 +556,7 @@ function freshState() {
     allocations: { ...mission.allocations },
     nextDayEffects: null,
     crew: createInitialCrew(),
+    equipment: createInitialEquipment(),
     log: ["站内安静得只剩风声，等待选择任务。"]
   };
 }
@@ -601,11 +629,13 @@ function start() {
     allocations: { ...mission.allocations },
     nextDayEffects: null,
     crew: createInitialCrew(),
+    equipment: createInitialEquipment(),
     log: [mission.intro]
   };
   resultEl.classList.add("hidden");
   missionDeskEl.classList.add("hidden");
   crewPanelEl.classList.remove("hidden");
+  workshopPanelEl.classList.remove("hidden");
   controlsPanelEl.classList.remove("hidden");
   autoAssignCrew();
   render();
@@ -651,6 +681,109 @@ function pickWeatherForMission(mission) {
   return weighted[Math.floor(Math.random() * weighted.length)];
 }
 
+function calculateEquipmentEffects() {
+  const effects = {
+    heatReqAdj: 0,
+    commEfficiency: 1.0,
+    labEfficiency: 1.0,
+    foodLossAdj: 0,
+    details: []
+  };
+
+  const heatEq = state.equipment.heat;
+  if (heatEq.durability < 60) {
+    const adj = Math.ceil((60 - heatEq.durability) / 20);
+    effects.heatReqAdj += adj;
+    effects.details.push(`供暖锅炉老化，最低供暖需求+${adj}`);
+  }
+  if (heatEq.level >= 2) effects.heatReqAdj -= 1;
+  if (heatEq.level >= 3) effects.heatReqAdj -= 1;
+  if (heatEq.level >= 2) effects.details.push(`供暖锅炉Lv${heatEq.level}，供暖需求-${heatEq.level - 1}`);
+
+  const commEq = state.equipment.comm;
+  if (commEq.durability < 60) {
+    effects.commEfficiency = Math.max(0.3, commEq.durability / 60);
+    effects.details.push(`通信天线老化，通信效率×${effects.commEfficiency.toFixed(1)}`);
+  }
+  if (commEq.level >= 2) effects.commEfficiency += 0.2;
+  if (commEq.level >= 3) effects.commEfficiency += 0.3;
+  if (commEq.level >= 2) effects.details.push(`通信天线Lv${commEq.level}，通信效率+${((commEq.level - 1) * 0.2 + (commEq.level >= 3 ? 0.1 : 0)).toFixed(1)}`);
+
+  const labEq = state.equipment.lab;
+  if (labEq.durability < 60) {
+    effects.labEfficiency = Math.max(0.3, labEq.durability / 60);
+    effects.details.push(`实验仪器老化，实验效率×${effects.labEfficiency.toFixed(1)}`);
+  }
+  if (labEq.level >= 2) effects.labEfficiency += 0.2;
+  if (labEq.level >= 3) effects.labEfficiency += 0.3;
+  if (labEq.level >= 2) effects.details.push(`实验仪器Lv${labEq.level}，实验效率+${((labEq.level - 1) * 0.2 + (labEq.level >= 3 ? 0.1 : 0)).toFixed(1)}`);
+
+  const foodEq = state.equipment.food;
+  if (foodEq.durability < 60) {
+    const adj = Math.ceil((60 - foodEq.durability) / 15);
+    effects.foodLossAdj += adj;
+    effects.details.push(`冷库机组老化，食物损耗+${adj}`);
+  }
+  if (foodEq.level >= 2) effects.foodLossAdj -= 1;
+  if (foodEq.level >= 3) effects.foodLossAdj -= 1;
+  if (foodEq.level >= 2) effects.details.push(`冷库机组Lv${foodEq.level}，食物损耗-${foodEq.level - 1}`);
+
+  return effects;
+}
+
+function degradeEquipment() {
+  const weatherMult = weatherDurMultiplier[state.weather.name] || 1.0;
+  const degrades = [];
+  equipmentDefs.forEach((def) => {
+    const eq = state.equipment[def.id];
+    let loss = def.baseDurLoss * weatherMult;
+
+    let lowPowerMult = 1.0;
+    if (def.id === "heat" && state.allocations.heat < state.weather.heat) lowPowerMult = 1.5;
+    if (def.id === "comm" && state.allocations.comm < state.weather.comm) lowPowerMult = 1.5;
+    if (def.id === "lab" && state.allocations.lab < 2) lowPowerMult = 1.4;
+    if (def.id === "food" && state.allocations.food < 2) lowPowerMult = 1.4;
+
+    loss *= lowPowerMult;
+    const before = eq.durability;
+    eq.durability = Math.max(0, Math.round(eq.durability - loss));
+    const actualLoss = before - eq.durability;
+    if (actualLoss > 0) degrades.push(`${def.icon}${def.name}-${actualLoss}`);
+  });
+  return degrades;
+}
+
+function repairEquipment(eqId) {
+  const def = equipmentDefs.find((d) => d.id === eqId);
+  const eq = state.equipment[eqId];
+  if (!def || !eq) return;
+  if (eq.durability >= 100) return;
+  if (state.fuel < def.repairFuel) return;
+
+  state.fuel -= def.repairFuel;
+  eq.durability = Math.min(100, eq.durability + 25);
+  addLog(`维修${def.name}：消耗柴油${def.repairFuel}，耐久恢复至${eq.durability}。`);
+  render();
+}
+
+function upgradeEquipment(eqId) {
+  const def = equipmentDefs.find((d) => d.id === eqId);
+  const eq = state.equipment[eqId];
+  if (!def || !eq) return;
+  if (eq.level >= def.maxLevel) return;
+
+  const costFuel = def.upgradeFuel * eq.level;
+  const costData = def.upgradeData * eq.level;
+  if (state.fuel < costFuel || state.data < costData) return;
+
+  state.fuel -= costFuel;
+  state.data -= costData;
+  eq.level += 1;
+  eq.durability = Math.min(100, eq.durability + 10);
+  addLog(`升级${def.name}至Lv${eq.level}：消耗柴油${costFuel}、数据${costData}。`);
+  render();
+}
+
 function endDay() {
   if (!state.started) return;
   const spent = totalPower();
@@ -661,34 +794,57 @@ function endDay() {
   }
 
   const crewEffects = calculateCrewEffects();
+  const eqEffects = calculateEquipmentEffects();
 
   let fuelCost = spent + (state.weather.name === "暴风雪" ? 4 : 2);
+  const baseFuelCost = fuelCost;
   fuelCost = Math.max(1, fuelCost - crewEffects.fuelSave);
   state.fuel -= fuelCost;
 
-  const heatGap = Math.max(0, state.weather.heat - state.allocations.heat);
+  const effectiveHeatReq = Math.max(1, state.weather.heat + eqEffects.heatReqAdj);
+  const heatGap = Math.max(0, effectiveHeatReq - state.allocations.heat);
   const commGap = Math.max(0, state.weather.comm - state.allocations.comm);
   const commOk = state.allocations.comm >= state.weather.comm;
 
-  state.morale -= heatGap * 9;
-  state.morale -= commGap * 5;
+  const baseMoraleLoss = heatGap * 9 + commGap * 5;
+  state.morale -= baseMoraleLoss;
 
+  let commMoraleGain = 0;
   if (state.mission.commMoraleBonus && commOk) {
-    state.morale += 3;
+    commMoraleGain = 3;
+    state.morale += commMoraleGain;
   }
   state.morale += crewEffects.moraleBoost;
 
   let foodLoss = state.mission.foodReserve
     ? Math.max(2, 6 - state.allocations.food)
     : Math.max(3, 8 - state.allocations.food);
+  const baseFoodLoss = foodLoss;
   foodLoss = Math.max(1, foodLoss - crewEffects.foodSave);
+  const crewFoodSave = baseFoodLoss - foodLoss;
+  foodLoss += eqEffects.foodLossAdj;
+  const eqFoodLoss = eqEffects.foodLossAdj;
+  foodLoss = Math.max(1, foodLoss);
   state.food -= foodLoss;
 
   let dataGain = state.allocations.lab * state.mission.dataPerLab;
-  if (commOk) dataGain += 2;
-  if (state.mission.commBonus && commOk) dataGain += state.mission.commBonus;
+  const baseDataGain = dataGain;
+  dataGain = Math.round(dataGain * eqEffects.labEfficiency);
+  const labEffMod = dataGain - baseDataGain;
+  let commDataGain = 0;
+  if (commOk) {
+    commDataGain = Math.round(2 * eqEffects.commEfficiency);
+    dataGain += commDataGain;
+  }
+  let missionCommBonus = 0;
+  if (state.mission.commBonus && commOk) {
+    missionCommBonus = Math.round(state.mission.commBonus * eqEffects.commEfficiency);
+    dataGain += missionCommBonus;
+  }
   dataGain += crewEffects.dataBoost;
   state.data += dataGain;
+
+  const durDegrades = degradeEquipment();
 
   updateCrewAfterDay();
 
@@ -698,6 +854,30 @@ function endDay() {
   if (crewEffects.fatigueWarns.length > 0) {
     crewEffects.fatigueWarns.forEach((w) => addLog(`⚠ ${w}`));
   }
+
+  const settlementLines = [];
+  settlementLines.push(`【资源结算】`);
+  settlementLines.push(`• 柴油消耗：${baseFuelCost}（基础）${crewEffects.fuelSave > 0 ? ` - ${crewEffects.fuelSave}（队员节省）` : ''} = ${fuelCost}`);
+  if (baseMoraleLoss > 0) settlementLines.push(`• 士气损失：${baseMoraleLoss}（供暖缺口×9 + 通信缺口×5）`);
+  if (commMoraleGain > 0) settlementLines.push(`• 士气增益：+${commMoraleGain}（通信中继任务奖励）`);
+  if (crewEffects.moraleBoost > 0) settlementLines.push(`• 士气增益：+${crewEffects.moraleBoost}（队员专长）`);
+  settlementLines.push(`• 食物损耗：${baseFoodLoss}（基础）${crewFoodSave > 0 ? ` - ${crewFoodSave}（队员节省）` : ''}${eqFoodLoss > 0 ? ` + ${eqFoodLoss}（冷库老化）` : eqFoodLoss < 0 ? ` ${eqFoodLoss}（冷库升级）` : ''} = ${foodLoss}`);
+  const dataParts = [];
+  dataParts.push(`${baseDataGain}（实验基础）`);
+  if (labEffMod !== 0) dataParts.push(`${labEffMod > 0 ? '+' : ''}${labEffMod}（仪器${labEffMod > 0 ? '升级' : '老化'}）`);
+  if (commDataGain > 0) dataParts.push(`+${commDataGain}（通信在线）`);
+  if (missionCommBonus > 0) dataParts.push(`+${missionCommBonus}（任务奖励）`);
+  if (crewEffects.dataBoost > 0) dataParts.push(`+${crewEffects.dataBoost}（队员专长）`);
+  settlementLines.push(`• 数据产出：${dataParts.join(' ')} = ${dataGain}`);
+
+  if (eqEffects.details.length > 0) {
+    settlementLines.push(`【设备状态】${eqEffects.details.join('；')}`);
+  }
+  if (durDegrades.length > 0) {
+    settlementLines.push(`【设备损耗】${durDegrades.join('，')}`);
+  }
+
+  settlementLines.forEach((line) => addLog(line));
   addLog(`随机事件：${eventText}`);
 
   if (state.fuel <= 0 || state.food <= 0 || state.morale <= 0) {
@@ -878,12 +1058,14 @@ function finish(success) {
   `;
   resultEl.classList.remove("hidden");
   crewPanelEl.classList.add("hidden");
+  workshopPanelEl.classList.add("hidden");
   controlsPanelEl.classList.add("hidden");
   document.getElementById("returnBtn").addEventListener("click", () => {
     state = freshState();
     resultEl.classList.add("hidden");
     missionDeskEl.classList.remove("hidden");
     crewPanelEl.classList.add("hidden");
+    workshopPanelEl.classList.add("hidden");
     controlsPanelEl.classList.add("hidden");
     renderMissionCards();
     startBtn.disabled = true;
@@ -950,6 +1132,20 @@ function render() {
   moraleEl.textContent = state.morale;
   foodEl.textContent = state.food;
   dataEl.textContent = state.data;
+  if (state.started && state.equipment) {
+    document.querySelectorAll(".module").forEach((el) => {
+      const sysId = el.classList[1];
+      const eq = state.equipment[sysId];
+      if (eq) {
+        const durColor = eq.durability >= 60 ? "" : eq.durability >= 30 ? "⚠" : "‼";
+        el.querySelector(".eq-dur-indicator")?.remove();
+        const indicator = document.createElement("span");
+        indicator.className = "eq-dur-indicator";
+        indicator.textContent = ` ${durColor}${eq.durability}`;
+        el.appendChild(indicator);
+      }
+    });
+  }
   if (state.started) {
     startBtn.textContent = "重新开始";
   } else if (state.selectedMissionId) {
@@ -967,7 +1163,10 @@ function render() {
     if (state.mission.foodReserve) extraHints.push("食物储备加成，消耗降低");
     const crewPreview = previewCrewEffects();
     if (crewPreview.summary) extraHints.push(crewPreview.summary);
-    forecastEl.textContent = `今日${state.weather.name}，建议供暖至少${state.weather.heat}格，通信至少${state.weather.comm}格。剩余电力可以投给实验或食物储藏。${extraHints.length ? "【" + extraHints.join("，") + "】" : ""}`;
+    const eqPreview = previewEquipmentEffects();
+    if (eqPreview) extraHints.push(eqPreview);
+    const effectiveHeatReq = Math.max(1, state.weather.heat + calculateEquipmentEffects().heatReqAdj);
+    forecastEl.textContent = `今日${state.weather.name}，建议供暖至少${effectiveHeatReq}格（天气${state.weather.heat}+设备调整），通信至少${state.weather.comm}格。剩余电力可以投给实验或食物储藏。${extraHints.length ? "【" + extraHints.join("，") + "】" : ""}`;
   } else {
     forecastEl.textContent = state.selectedMissionId
       ? "已选择任务，点击确认按钮进入电力分配。"
@@ -976,9 +1175,96 @@ function render() {
   if (state.started) {
     renderCrewCards();
     renderCrewSummary();
+    renderEquipmentWorkshop();
   }
   renderAllocationValues();
   renderLog();
+}
+
+function previewEquipmentEffects() {
+  if (!state.equipment) return "";
+  const eqEffects = calculateEquipmentEffects();
+  const parts = [];
+  if (eqEffects.heatReqAdj !== 0) parts.push(`供暖需求${eqEffects.heatReqAdj > 0 ? "+" : ""}${eqEffects.heatReqAdj}`);
+  if (eqEffects.commEfficiency !== 1.0) parts.push(`通信效率×${eqEffects.commEfficiency.toFixed(1)}`);
+  if (eqEffects.labEfficiency !== 1.0) parts.push(`实验效率×${eqEffects.labEfficiency.toFixed(1)}`);
+  if (eqEffects.foodLossAdj !== 0) parts.push(`食物损耗${eqEffects.foodLossAdj > 0 ? "+" : ""}${eqEffects.foodLossAdj}`);
+  return parts.length ? `设备效果：${parts.join("，")}` : "";
+}
+
+function getEquipmentEffectDesc(def, eq) {
+  const parts = [];
+  if (def.id === "heat") {
+    if (eq.durability < 60) parts.push(`老化：供暖需求+${Math.ceil((60 - eq.durability) / 20)}`);
+    if (eq.level >= 2) parts.push(`Lv${eq.level}：供暖需求-${eq.level - 1}`);
+    if (eq.durability >= 60 && eq.level < 2) parts.push("状态正常");
+  }
+  if (def.id === "comm") {
+    let eff = 1.0;
+    if (eq.durability < 60) eff = Math.max(0.3, eq.durability / 60);
+    if (eq.level >= 2) eff += 0.2;
+    if (eq.level >= 3) eff += 0.3;
+    if (eff !== 1.0) parts.push(`通信效率×${eff.toFixed(1)}`);
+    else parts.push("状态正常");
+  }
+  if (def.id === "lab") {
+    let eff = 1.0;
+    if (eq.durability < 60) eff = Math.max(0.3, eq.durability / 60);
+    if (eq.level >= 2) eff += 0.2;
+    if (eq.level >= 3) eff += 0.3;
+    if (eff !== 1.0) parts.push(`实验效率×${eff.toFixed(1)}`);
+    else parts.push("状态正常");
+  }
+  if (def.id === "food") {
+    if (eq.durability < 60) parts.push(`老化：食物损耗+${Math.ceil((60 - eq.durability) / 15)}`);
+    if (eq.level >= 2) parts.push(`Lv${eq.level}：食物损耗-${eq.level - 1}`);
+    if (eq.durability >= 60 && eq.level < 2) parts.push("状态正常");
+  }
+  return parts.join("；");
+}
+
+function renderEquipmentWorkshop() {
+  if (!state.equipment) return;
+  equipmentCardsEl.innerHTML = "";
+  equipmentDefs.forEach((def) => {
+    const eq = state.equipment[def.id];
+    const durColor = eq.durability >= 80 ? "#4f8a5b" : eq.durability >= 60 ? "#d18b3f" : eq.durability >= 30 ? "#d18b3f" : "#d14c3f";
+    const durBarColor = eq.durability >= 60 ? "#4f8a5b" : eq.durability >= 30 ? "#f2c14e" : "#d14c3f";
+    const statusLabel = eq.durability >= 80 ? "良好" : eq.durability >= 60 ? "一般" : eq.durability >= 30 ? "老化" : "严重老化";
+
+    const canRepair = eq.durability < 100 && state.fuel >= def.repairFuel;
+    const upgradeFuelCost = def.upgradeFuel * eq.level;
+    const upgradeDataCost = def.upgradeData * eq.level;
+    const canUpgrade = eq.level < def.maxLevel && state.fuel >= upgradeFuelCost && state.data >= upgradeDataCost;
+
+    const effectDesc = getEquipmentEffectDesc(def, eq);
+
+    const card = document.createElement("div");
+    card.className = `eq-card eq-${def.id}`;
+    card.innerHTML = `
+      <div class="eq-card-head">
+        <span class="eq-icon">${def.icon}</span>
+        <div class="eq-card-info">
+          <div class="eq-name">${def.name}</div>
+          <div class="eq-level">Lv${eq.level}${eq.level < def.maxLevel ? ` → Lv${eq.level + 1}` : " (满级)"}</div>
+        </div>
+        <span class="eq-status" style="color:${durColor}">${statusLabel}</span>
+      </div>
+      <div class="eq-dur-bar-wrap">
+        <div class="eq-dur-label"><span>耐久度</span><strong style="color:${durColor}">${eq.durability}/100</strong></div>
+        <div class="eq-dur-bar"><div class="eq-dur-fill" style="width:${eq.durability}%;background:${durBarColor}"></div></div>
+      </div>
+      <div class="eq-effect">${effectDesc}</div>
+      <div class="eq-actions">
+        <button class="eq-repair-btn" type="button" ${canRepair ? "" : "disabled"}>维修（柴油${def.repairFuel}）</button>
+        <button class="eq-upgrade-btn" type="button" ${canUpgrade ? "" : "disabled"}>${eq.level < def.maxLevel ? `升级（柴油${upgradeFuelCost} 数据${upgradeDataCost}）` : "已满级"}</button>
+      </div>
+    `;
+
+    card.querySelector(".eq-repair-btn").addEventListener("click", () => repairEquipment(def.id));
+    card.querySelector(".eq-upgrade-btn").addEventListener("click", () => upgradeEquipment(def.id));
+    equipmentCardsEl.appendChild(card);
+  });
 }
 
 function renderLog() {
