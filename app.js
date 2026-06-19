@@ -18,6 +18,13 @@ const controlsPanelEl = document.getElementById("controlsPanel");
 const clearArchiveBtn = document.getElementById("clearArchiveBtn");
 const archiveEmptyEl = document.getElementById("archiveEmpty");
 const archiveListEl = document.getElementById("archiveList");
+const crewPanelEl = document.getElementById("crewPanel");
+const crewCardsEl = document.getElementById("crewCards");
+const crewHeatEl = document.getElementById("crewHeat");
+const crewCommEl = document.getElementById("crewComm");
+const crewLabEl = document.getElementById("crewLab");
+const crewFoodEl = document.getElementById("crewFood");
+const crewRestEl = document.getElementById("crewRest");
 
 const emergencyOverlay = document.getElementById("emergencyOverlay");
 const emergencyIcon = document.getElementById("emergencyIcon");
@@ -48,6 +55,51 @@ const systems = [
   { id: "lab", name: "实验", hint: "产出科考数据" },
   { id: "food", name: "食物储藏", hint: "低于2会损耗食物" }
 ];
+
+const stations = [
+  { id: "heat", name: "供暖", icon: "🔥", desc: "维护暖气" },
+  { id: "comm", name: "通信", icon: "📡", desc: "值守电台" },
+  { id: "lab", name: "实验", icon: "🔬", desc: "操作仪器" },
+  { id: "food", name: "储藏", icon: "🧊", desc: "检查冷库" },
+  { id: "rest", name: "休息", icon: "😴", desc: "养精蓄锐" }
+];
+
+const crewTemplates = [
+  {
+    id: "zhao",
+    name: "赵工程师",
+    specialty: "heat",
+    specialtyName: "供暖专长",
+    initialFatigue: 15,
+    initialMood: 70,
+    avatar: "🧑‍🔧"
+  },
+  {
+    id: "qian",
+    name: "钱通讯员",
+    specialty: "comm",
+    specialtyName: "通信专长",
+    initialFatigue: 10,
+    initialMood: 75,
+    avatar: "👩‍💻"
+  },
+  {
+    id: "sun",
+    name: "孙研究员",
+    specialty: "lab",
+    specialtyName: "实验专长",
+    initialFatigue: 20,
+    initialMood: 65,
+    avatar: "👨‍🔬"
+  }
+];
+
+const crewSpecialtyBonus = {
+  heat: { fuelSave: 3, moraleBoost: 2 },
+  comm: { dataBoost: 4, moraleBoost: 1 },
+  lab: { dataBoost: 6 },
+  food: { foodSave: 4, moraleBoost: 1 }
+};
 
 const weatherDeck = [
   { name: "晴朗", icon: "晴", heat: 2, comm: 1, power: 12 },
@@ -447,6 +499,21 @@ function initTutorialEvents() {
   }, true);
 }
 
+function createInitialCrew() {
+  return crewTemplates.map((t) => ({
+    id: t.id,
+    name: t.name,
+    specialty: t.specialty,
+    specialtyName: t.specialtyName,
+    avatar: t.avatar,
+    fatigue: t.initialFatigue,
+    mood: t.initialMood,
+    station: null,
+    previousStation: null,
+    consecutiveDays: 0
+  }));
+}
+
 function freshState() {
   const mission = missions.find((m) => m.id === "standard");
   return {
@@ -461,6 +528,7 @@ function freshState() {
     weather: weatherDeck[0],
     allocations: { ...mission.allocations },
     nextDayEffects: null,
+    crew: createInitialCrew(),
     log: ["站内安静得只剩风声，等待选择任务。"]
   };
 }
@@ -532,11 +600,14 @@ function start() {
     weather: pickWeatherForMission(mission),
     allocations: { ...mission.allocations },
     nextDayEffects: null,
+    crew: createInitialCrew(),
     log: [mission.intro]
   };
   resultEl.classList.add("hidden");
   missionDeskEl.classList.add("hidden");
+  crewPanelEl.classList.remove("hidden");
   controlsPanelEl.classList.remove("hidden");
+  autoAssignCrew();
   render();
   setTimeout(() => {
     refreshTutorialHighlight();
@@ -544,6 +615,28 @@ function start() {
       startTutorial();
     }
   }, 50);
+}
+
+function autoAssignCrew() {
+  const unassigned = state.crew.filter((c) => c.station === null);
+  const stationIds = ["heat", "comm", "lab", "food"];
+  unassigned.forEach((member) => {
+    if (stationIds.includes(member.specialty)) {
+      const occupied = state.crew.some((c) => c.station === member.specialty);
+      if (!occupied) {
+        member.station = member.specialty;
+      }
+    }
+  });
+  const stillUnassigned = state.crew.filter((c) => c.station === null);
+  const remainingStations = stationIds.filter((sid) => !state.crew.some((c) => c.station === sid));
+  stillUnassigned.forEach((member, idx) => {
+    if (remainingStations[idx]) {
+      member.station = remainingStations[idx];
+    } else {
+      member.station = "rest";
+    }
+  });
 }
 
 function pickWeatherForMission(mission) {
@@ -567,7 +660,12 @@ function endDay() {
     return;
   }
 
-  state.fuel -= spent + (state.weather.name === "暴风雪" ? 4 : 2);
+  const crewEffects = calculateCrewEffects();
+
+  let fuelCost = spent + (state.weather.name === "暴风雪" ? 4 : 2);
+  fuelCost = Math.max(1, fuelCost - crewEffects.fuelSave);
+  state.fuel -= fuelCost;
+
   const heatGap = Math.max(0, state.weather.heat - state.allocations.heat);
   const commGap = Math.max(0, state.weather.comm - state.allocations.comm);
   const commOk = state.allocations.comm >= state.weather.comm;
@@ -578,19 +676,29 @@ function endDay() {
   if (state.mission.commMoraleBonus && commOk) {
     state.morale += 3;
   }
+  state.morale += crewEffects.moraleBoost;
 
-  const foodLoss = state.mission.foodReserve
+  let foodLoss = state.mission.foodReserve
     ? Math.max(2, 6 - state.allocations.food)
     : Math.max(3, 8 - state.allocations.food);
+  foodLoss = Math.max(1, foodLoss - crewEffects.foodSave);
   state.food -= foodLoss;
 
   let dataGain = state.allocations.lab * state.mission.dataPerLab;
   if (commOk) dataGain += 2;
   if (state.mission.commBonus && commOk) dataGain += state.mission.commBonus;
+  dataGain += crewEffects.dataBoost;
   state.data += dataGain;
 
+  updateCrewAfterDay();
+
+  const crewLog = formatCrewDayLog(crewEffects);
   const eventText = randomEvent();
-  addLog(`第${state.day}天结束：${eventText}`);
+  addLog(`第${state.day}天结束：${crewLog}`);
+  if (crewEffects.fatigueWarns.length > 0) {
+    crewEffects.fatigueWarns.forEach((w) => addLog(`⚠ ${w}`));
+  }
+  addLog(`随机事件：${eventText}`);
 
   if (state.fuel <= 0 || state.food <= 0 || state.morale <= 0) {
     finish(false);
@@ -769,11 +877,13 @@ function finish(success) {
     <button id="returnBtn" type="button">返回任务选择台</button>
   `;
   resultEl.classList.remove("hidden");
+  crewPanelEl.classList.add("hidden");
   controlsPanelEl.classList.add("hidden");
   document.getElementById("returnBtn").addEventListener("click", () => {
     state = freshState();
     resultEl.classList.add("hidden");
     missionDeskEl.classList.remove("hidden");
+    crewPanelEl.classList.add("hidden");
     controlsPanelEl.classList.add("hidden");
     renderMissionCards();
     startBtn.disabled = true;
@@ -855,11 +965,17 @@ function render() {
       extraHints.push(`通信达标额外+${state.mission.commBonus}数据`);
     if (state.mission.commMoraleBonus) extraHints.push("通信达标士气+3");
     if (state.mission.foodReserve) extraHints.push("食物储备加成，消耗降低");
+    const crewPreview = previewCrewEffects();
+    if (crewPreview.summary) extraHints.push(crewPreview.summary);
     forecastEl.textContent = `今日${state.weather.name}，建议供暖至少${state.weather.heat}格，通信至少${state.weather.comm}格。剩余电力可以投给实验或食物储藏。${extraHints.length ? "【" + extraHints.join("，") + "】" : ""}`;
   } else {
     forecastEl.textContent = state.selectedMissionId
       ? "已选择任务，点击确认按钮进入电力分配。"
       : "请在上方任务选择台选择一项任务。";
+  }
+  if (state.started) {
+    renderCrewCards();
+    renderCrewSummary();
   }
   renderAllocationValues();
   renderLog();
@@ -948,6 +1064,311 @@ function renderArchive() {
     `;
     archiveListEl.appendChild(card);
   });
+}
+
+function calculateCrewEffects() {
+  const effects = {
+    fuelSave: 0,
+    moraleBoost: 0,
+    dataBoost: 0,
+    foodSave: 0,
+    fatigueWarns: [],
+    moodPenalties: [],
+    matched: [],
+    fatiguedPenalty: { data: 0, food: 0, morale: 0 }
+  };
+
+  state.crew.forEach((member) => {
+    if (member.station === "rest") return;
+
+    const isMatched = member.specialty === member.station;
+    const bonus = crewSpecialtyBonus[member.station] || {};
+
+    const efficiency = getCrewEfficiency(member);
+
+    if (isMatched) {
+      if (bonus.fuelSave) effects.fuelSave += Math.round(bonus.fuelSave * efficiency);
+      if (bonus.dataBoost) effects.dataBoost += Math.round(bonus.dataBoost * efficiency);
+      if (bonus.foodSave) effects.foodSave += Math.round(bonus.foodSave * efficiency);
+      if (bonus.moraleBoost) effects.moraleBoost += Math.round(bonus.moraleBoost * efficiency);
+      effects.matched.push(member.name);
+    } else {
+      if (bonus.fuelSave) effects.fuelSave += Math.round(bonus.fuelSave * 0.4 * efficiency);
+      if (bonus.dataBoost) effects.dataBoost += Math.round(bonus.dataBoost * 0.4 * efficiency);
+      if (bonus.foodSave) effects.foodSave += Math.round(bonus.foodSave * 0.4 * efficiency);
+      if (bonus.moraleBoost) effects.moraleBoost += Math.round(bonus.moraleBoost * 0.4 * efficiency);
+    }
+
+    if (efficiency < 0.5) {
+      effects.fatiguedPenalty.data -= Math.round(3 * (0.5 - efficiency) * 10);
+      effects.fatiguedPenalty.morale -= Math.round(4 * (0.5 - efficiency) * 10);
+    }
+
+    if (member.fatigue >= 85) {
+      effects.fatigueWarns.push(`${member.name} 过度疲劳！效率严重下降，建议休息。`);
+    } else if (member.fatigue >= 70) {
+      effects.fatigueWarns.push(`${member.name} 疲劳过高（${member.fatigue}），效率受影响。`);
+    }
+  });
+
+  effects.dataBoost += effects.fatiguedPenalty.data;
+  effects.moraleBoost += effects.fatiguedPenalty.morale;
+
+  effects.fuelSave = Math.max(0, effects.fuelSave);
+  effects.foodSave = Math.max(0, effects.foodSave);
+  effects.dataBoost = Math.max(0, effects.dataBoost);
+
+  return effects;
+}
+
+function getCrewEfficiency(member) {
+  if (member.station === "rest") return 0;
+  let efficiency = 1;
+  if (member.fatigue >= 90) efficiency *= 0.3;
+  else if (member.fatigue >= 80) efficiency *= 0.5;
+  else if (member.fatigue >= 70) efficiency *= 0.7;
+  else if (member.fatigue >= 60) efficiency *= 0.85;
+  if (member.mood <= 20) efficiency *= 0.7;
+  else if (member.mood <= 40) efficiency *= 0.85;
+  else if (member.mood >= 80) efficiency *= 1.05;
+  return Math.max(0.2, efficiency);
+}
+
+function previewCrewEffects() {
+  if (!state.crew || state.crew.length === 0) return { summary: "" };
+  let dataBoost = 0;
+  let fuelSave = 0;
+  let foodSave = 0;
+  let moraleBoost = 0;
+  let matchedCount = 0;
+  let fatiguedCount = 0;
+  let restCount = 0;
+
+  state.crew.forEach((m) => {
+    if (m.station === "rest") {
+      restCount++;
+      return;
+    }
+    const matched = m.specialty === m.station;
+    const efficiency = getCrewEfficiency(m);
+    const bonus = crewSpecialtyBonus[m.station] || {};
+    const mult = matched ? 1 : 0.4;
+    if (bonus.fuelSave) fuelSave += Math.round(bonus.fuelSave * mult * efficiency);
+    if (bonus.dataBoost) dataBoost += Math.round(bonus.dataBoost * mult * efficiency);
+    if (bonus.foodSave) foodSave += Math.round(bonus.foodSave * mult * efficiency);
+    if (bonus.moraleBoost) moraleBoost += Math.round(bonus.moraleBoost * mult * efficiency);
+    if (matched) matchedCount++;
+    if (m.fatigue >= 70) fatiguedCount++;
+  });
+
+  const parts = [];
+  if (matchedCount > 0) parts.push(`专长匹配×${matchedCount}`);
+  if (fuelSave > 0) parts.push(`柴油省${fuelSave}`);
+  if (dataBoost > 0) parts.push(`数据+${dataBoost}`);
+  if (foodSave > 0) parts.push(`食物省${foodSave}`);
+  if (moraleBoost > 0) parts.push(`士气+${moraleBoost}`);
+  if (restCount > 0) parts.push(`${restCount}人休息`);
+  if (fatiguedCount > 0) parts.push(`⚠${fatiguedCount}人疲劳`);
+
+  return { summary: parts.length ? `队员排班：${parts.join("，")}` : "" };
+}
+
+function updateCrewAfterDay() {
+  state.crew.forEach((member) => {
+    member.previousStation = member.station;
+
+    if (member.station === "rest") {
+      member.fatigue = Math.max(0, member.fatigue - 35);
+      member.mood = Math.min(100, member.mood + 8);
+      member.consecutiveDays = 0;
+    } else {
+      let fatigueDelta = 15;
+      const isMatched = member.specialty === member.station;
+      if (!isMatched) fatigueDelta += 5;
+
+      if (member.consecutiveDays >= 2) {
+        fatigueDelta += 8;
+      }
+      if (member.consecutiveDays >= 3) {
+        fatigueDelta += 10;
+      }
+      if (member.consecutiveDays >= 4) {
+        fatigueDelta += 12;
+      }
+
+      if (state.weather.name === "暴风雪") fatigueDelta += 6;
+      else if (state.weather.name === "低温") fatigueDelta += 3;
+
+      member.fatigue = Math.min(100, member.fatigue + fatigueDelta);
+
+      let moodDelta = 0;
+      if (isMatched) moodDelta += 2;
+      if (member.consecutiveDays >= 2) moodDelta -= 2;
+      if (member.consecutiveDays >= 3) moodDelta -= 4;
+      if (member.fatigue >= 80) moodDelta -= 5;
+      else if (member.fatigue >= 60) moodDelta -= 2;
+      moodDelta += Math.round(state.morale >= 70 ? 1 : state.morale <= 30 ? -2 : 0);
+
+      member.mood = Math.max(0, Math.min(100, member.mood + moodDelta));
+
+      if (member.previousStation === member.station) {
+        member.consecutiveDays++;
+      } else {
+        member.consecutiveDays = 1;
+      }
+    }
+
+    member.station = member.station === "rest" ? null : null;
+  });
+
+  state.crew.forEach((m) => {
+    if (m.station === null) {
+      if (m.fatigue >= 80) {
+        m.station = "rest";
+      }
+    }
+  });
+
+  const remaining = state.crew.filter((m) => m.station === null);
+  const stationIds = ["heat", "comm", "lab", "food"];
+  const takenStations = new Set(
+    state.crew.filter((m) => m.station && m.station !== "rest").map((m) => m.station)
+  );
+  const available = stationIds.filter((s) => !takenStations.has(s));
+
+  remaining.sort((a, b) => {
+    if (available.includes(a.specialty) && !available.includes(b.specialty)) return -1;
+    if (!available.includes(a.specialty) && available.includes(b.specialty)) return 1;
+    return b.mood - a.mood;
+  });
+
+  remaining.forEach((member) => {
+    if (member.station !== null) return;
+    if (available.includes(member.specialty)) {
+      member.station = member.specialty;
+      const idx = available.indexOf(member.specialty);
+      available.splice(idx, 1);
+    }
+  });
+
+  const stillRemaining = state.crew.filter((m) => m.station === null);
+  stillRemaining.forEach((member) => {
+    if (available.length > 0) {
+      member.station = available.shift();
+    } else {
+      member.station = "rest";
+    }
+  });
+}
+
+function formatCrewDayLog(crewEffects) {
+  const parts = [];
+  if (crewEffects.matched.length > 0) {
+    parts.push(`【专长匹配】${crewEffects.matched.join("、")} 发挥出色`);
+  }
+  if (crewEffects.dataBoost > 0) parts.push(`额外数据+${crewEffects.dataBoost}`);
+  if (crewEffects.fuelSave > 0) parts.push(`节省柴油${crewEffects.fuelSave}`);
+  if (crewEffects.foodSave > 0) parts.push(`节省食物${crewEffects.foodSave}`);
+  if (crewEffects.moraleBoost > 0) parts.push(`团队士气+${crewEffects.moraleBoost}`);
+
+  state.crew.forEach((m) => {
+    if (m.previousStation === "rest") {
+      parts.push(`${m.name} 休息恢复良好`);
+    }
+  });
+
+  return parts.length ? parts.join("，") : "队员正常值守。";
+}
+
+function renderCrewCards() {
+  crewCardsEl.innerHTML = "";
+  state.crew.forEach((member) => {
+    const card = document.createElement("div");
+    card.className = `crew-card head-specialty-${member.specialty}`;
+
+    const fatigueColor = member.fatigue >= 80 ? "#d14c3f" : member.fatigue >= 60 ? "#d18b3f" : "#4f8a5b";
+    const moodColor = member.mood <= 30 ? "#d14c3f" : member.mood <= 50 ? "#d18b3f" : "#4f8a5b";
+
+    const warnHtml = [];
+    if (member.fatigue >= 70) warnHtml.push(`<div class="crew-warn">⚠ 疲劳过高，效率下降</div>`);
+    if (member.mood <= 30) warnHtml.push(`<div class="crew-warn">⚠ 心情低落</div>`);
+    if (member.consecutiveDays >= 3 && member.station !== "rest") warnHtml.push(`<div class="crew-warn">⚠ 连续${member.consecutiveDays}天高强度工作</div>`);
+
+    const efficiency = Math.round(getCrewEfficiency(member) * 100);
+
+    card.innerHTML = `
+      <div class="crew-card-head">
+        <div>
+          <div class="crew-name">${member.avatar} ${member.name}</div>
+          <div style="font-size:11px;color:#63868c;margin-top:2px;">
+            效率 ${efficiency}%${member.consecutiveDays > 0 && member.station !== "rest" ? ` · 连${member.consecutiveDays}天` : ""}
+          </div>
+        </div>
+        <span class="crew-specialty specialty-${member.specialty}">${member.specialtyName}</span>
+      </div>
+      <div class="crew-stats">
+        <div class="crew-stat">
+          <div class="crew-stat-label"><span>疲劳</span><strong style="color:${fatigueColor}">${member.fatigue}</strong></div>
+          <div class="crew-stat-bar"><div class="crew-stat-fill fill-fatigue" style="width:${member.fatigue}%"></div></div>
+        </div>
+        <div class="crew-stat">
+          <div class="crew-stat-label"><span>心情</span><strong style="color:${moodColor}">${member.mood}</strong></div>
+          <div class="crew-stat-bar"><div class="crew-stat-fill fill-mood" style="width:${member.mood}%"></div></div>
+        </div>
+      </div>
+      ${warnHtml.join("")}
+      <div class="crew-assignments" data-crew-id="${member.id}"></div>
+    `;
+
+    crewCardsEl.appendChild(card);
+
+    const assignmentsEl = card.querySelector(".crew-assignments");
+    stations.forEach((st) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "crew-assign-btn";
+      const isMatched = member.specialty === st.id;
+      const isActive = member.station === st.id;
+      if (isActive) {
+        btn.classList.add("active", st.id);
+      }
+      if (isMatched && st.id !== "rest") {
+        btn.classList.add("matched");
+      }
+      btn.innerHTML = `${st.icon}<div>${st.name}</div>${isMatched && st.id !== "rest" ? "<small>专长</small>" : "<small>&nbsp;</small>"}`;
+      btn.title = isMatched && st.id !== "rest" ? `${st.desc}（${member.specialtyName}，效率+60%）` : st.desc;
+      btn.addEventListener("click", () => assignCrewStation(member.id, st.id));
+      assignmentsEl.appendChild(btn);
+    });
+  });
+}
+
+function renderCrewSummary() {
+  const map = { heat: [], comm: [], lab: [], food: [], rest: [] };
+  state.crew.forEach((m) => {
+    if (map[m.station]) map[m.station].push(m.name);
+  });
+  crewHeatEl.textContent = map.heat.length ? map.heat.join("、") : "无人";
+  crewCommEl.textContent = map.comm.length ? map.comm.join("、") : "无人";
+  crewLabEl.textContent = map.lab.length ? map.lab.join("、") : "无人";
+  crewFoodEl.textContent = map.food.length ? map.food.join("、") : "无人";
+  crewRestEl.textContent = map.rest.length;
+}
+
+function assignCrewStation(crewId, stationId) {
+  const member = state.crew.find((m) => m.id === crewId);
+  if (!member) return;
+
+  const currentHolder = state.crew.find((m) => m.id !== crewId && m.station === stationId);
+  const prevStation = member.station;
+
+  if (currentHolder) {
+    currentHolder.station = prevStation;
+  }
+  member.station = stationId;
+
+  addLog(`排班调整：${member.name} → ${stations.find((s) => s.id === stationId).name}${currentHolder ? `，${currentHolder.name} 接替原岗位` : ""}。`);
+  render();
 }
 
 init();
