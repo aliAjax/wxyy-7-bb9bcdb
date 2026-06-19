@@ -139,6 +139,7 @@ const levelEditorPanel = document.getElementById("levelEditorPanel");
 const editorValidation = document.getElementById("editorValidation");
 const editorValidateBtn = document.getElementById("editorValidateBtn");
 const editorLoadDefaultBtn = document.getElementById("editorLoadDefaultBtn");
+const editorCopySelectedBtn = document.getElementById("editorCopySelectedBtn");
 const editorSaveBtn = document.getElementById("editorSaveBtn");
 const editorDeleteBtn = document.getElementById("editorDeleteBtn");
 const editorSavedList = document.getElementById("editorSavedList");
@@ -4003,6 +4004,83 @@ function renderSavedLevels() {
   });
 }
 
+function copyFromSelectedLevel() {
+  clearEditorSaveHintTimer();
+
+  if (!state.selectedMissionId || state.selectedMissionId === "campaign") {
+    editorValidation.classList.remove("hidden");
+    editorValidation.className = "editor-validation error";
+    editorValidation.innerHTML = `<strong>⚠ 请先选择关卡</strong>请在任务选择台中选中一个默认关卡或自定义关卡，然后再点击复制。`;
+    return;
+  }
+
+  const mission = findMissionById(state.selectedMissionId);
+  if (!mission) {
+    editorValidation.classList.remove("hidden");
+    editorValidation.className = "editor-validation error";
+    editorValidation.innerHTML = `<strong>❌ 未找到关卡</strong>选中的关卡不存在，请重新选择。`;
+    return;
+  }
+
+  const config = {
+    name: mission.name,
+    tag: mission.tag,
+    color: mission.color,
+    desc: mission.desc,
+    days: mission.days,
+    fuel: mission.initial.fuel,
+    morale: mission.initial.morale,
+    food: mission.initial.food,
+    data: mission.initial.data,
+    allocHeat: mission.allocations.heat,
+    allocComm: mission.allocations.comm,
+    allocLab: mission.allocations.lab,
+    allocFood: mission.allocations.food,
+    weightSunny: mission.weatherWeight ? mission.weatherWeight["晴朗"] ?? 1 : 1,
+    weightCold: mission.weatherWeight ? mission.weatherWeight["低温"] ?? 1 : 1,
+    weightBlizzard: mission.weatherWeight ? mission.weatherWeight["暴风雪"] ?? 1 : 1,
+    weightNight: mission.weatherWeight ? mission.weatherWeight["极夜静风"] ?? 1 : 1,
+    dataGoal: mission.dataGoal || 0,
+    commBonus: !!mission.commBonus,
+    commBonusVal: mission.commBonus || 0,
+    commMoraleBonus: !!mission.commMoraleBonus,
+    foodReserve: !!mission.foodReserve,
+    emergencyChance: mission.emergencyChance !== undefined ? Math.round(mission.emergencyChance * 100) : 40,
+    minFuel: mission.minFuel || 0,
+    minMorale: mission.minMorale || 0,
+    minFood: mission.minFood || 0,
+    intro: mission.intro || ""
+  };
+
+  if (mission.isCustom && editorEditingId === mission.id) {
+    populateEditor(config);
+    editorValidation.classList.remove("hidden");
+    editorValidation.className = "editor-validation success";
+    editorValidation.innerHTML = `<strong>✅ 已刷新配置</strong>已重新载入当前编辑的自定义关卡「${mission.name}」的配置。`;
+  } else if (mission.isCustom) {
+    config.name = mission.name + " 副本";
+    populateEditor(config);
+    editorEditingId = null;
+    editorDeleteBtn.classList.add("hidden");
+    editorSaveBtn.textContent = "💾 保存为新关卡";
+    editorValidation.classList.remove("hidden");
+    editorValidation.className = "editor-validation success";
+    editorValidation.innerHTML = `<strong>✅ 已复制配置</strong>已从自定义关卡「${mission.name}」复制配置，名称已自动添加「副本」后缀，调整后可保存为新关卡。`;
+  } else {
+    config.name = mission.name + " 副本";
+    config.tag = config.tag || "自定义";
+    populateEditor(config);
+    editorEditingId = null;
+    editorDeleteBtn.classList.add("hidden");
+    editorSaveBtn.textContent = "💾 保存为新关卡";
+    editorValidation.classList.remove("hidden");
+    editorValidation.className = "editor-validation success";
+    editorValidation.innerHTML = `<strong>✅ 已复制配置</strong>已从默认关卡「${mission.name}」复制配置，名称已自动添加「副本」后缀，调整后可保存为新的自定义关卡。默认关卡不会被覆盖。`;
+  }
+
+  levelEditorPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
 function initEditorEvents() {
   toggleEditorBtn.addEventListener("click", openEditor);
   closeEditorBtn.addEventListener("click", closeEditor);
@@ -4019,6 +4097,7 @@ function initEditorEvents() {
     const result = validateLevelConfig(config);
     showValidationResult(result);
   });
+  editorCopySelectedBtn.addEventListener("click", copyFromSelectedLevel);
   editorSaveBtn.addEventListener("click", saveEditorLevel);
   editorDeleteBtn.addEventListener("click", () => {
     if (editorEditingId) deleteLevel(editorEditingId);
