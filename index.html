@@ -300,9 +300,11 @@
           <span id="commChainStatus" class="comm-status">未开始</span>
         </div>
       </div>
+      <div id="commChainSelector" class="comm-chain-selector"></div>
       <div class="comm-head-info">
         <h3 id="commChainTitle" class="comm-chain-title">极地补给中继任务链</h3>
-        <p class="comm-chain-desc">基地委派的阶段性通信任务，通信系统达标后可推进进度。暴风雪或通信不足会中断进度但不清零，完成阶段解锁资源奖励与特殊日志。</p>
+        <p class="comm-chain-desc">基地委派的阶段性通信任务，通信系统达标后可推进进度。恶劣天气或通信不足会中断进度但不清零，完成阶段解锁资源奖励与特殊日志。同一天只能推进一条任务链。</p>
+        <p id="commChainInterruptHint" class="comm-chain-interrupt-hint hidden"></p>
       </div>
       <div class="comm-progress-wrap">
         <div class="comm-progress-info">

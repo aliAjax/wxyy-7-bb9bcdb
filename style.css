@@ -1978,6 +1978,102 @@ h2 {
   border-left: 2px solid #357a90;
 }
 
+.comm-chain-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.comm-chain-chip {
+  --chain-accent: #357a90;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 2px solid #c5d7da;
+  background: #fff;
+  color: #3e5f65;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.comm-chain-chip:hover {
+  border-color: var(--chain-accent);
+  color: var(--chain-accent);
+}
+
+.comm-chain-chip.active {
+  border-color: var(--chain-accent);
+  background: var(--chain-accent);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.comm-chain-chip.done::after {
+  content: "";
+}
+
+.comm-chain-chip-icon {
+  font-size: 14px;
+}
+
+.comm-chain-chip-name {
+  line-height: 1;
+}
+
+.comm-chain-chip-done {
+  margin-left: 2px;
+  font-weight: 700;
+}
+
+.comm-chain-interrupt-hint {
+  margin: 6px 0 0;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: #fff3d6;
+  color: #725a1a;
+  font-size: 11px;
+  font-weight: 600;
+  display: inline-block;
+}
+
+.comm-phase.current {
+  --chain-accent: #357a90;
+  border-color: var(--chain-accent);
+  background: color-mix(in srgb, var(--chain-accent) 10%, #fff);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--chain-accent) 15%, transparent);
+}
+
+.comm-phase.current .comm-phase-icon {
+  background: var(--chain-accent);
+}
+
+.comm-phase.current .comm-phase-tag {
+  background: color-mix(in srgb, var(--chain-accent) 18%, transparent);
+  color: var(--chain-accent);
+}
+
+.comm-phase.done {
+  --chain-accent: #4f8a5b;
+  border-color: var(--chain-accent);
+  background: color-mix(in srgb, var(--chain-accent) 8%, #fff);
+  opacity: 0.92;
+}
+
+.comm-phase.done .comm-phase-icon {
+  background: var(--chain-accent);
+}
+
+.comm-phase.done .comm-phase-tag {
+  background: color-mix(in srgb, var(--chain-accent) 18%, transparent);
+  color: var(--chain-accent);
+}
+
 @media (max-width: 900px) {
   .tutorial-card {
     left: 16px !important;

@@ -77,9 +77,12 @@ const sampleIntegrityEl = document.getElementById("sampleIntegrity");
 const sampleTotalValueEl = document.getElementById("sampleTotalValue");
 
 const commPanelEl = document.getElementById("commPanel");
+const commChainSelectorEl = document.getElementById("commChainSelector");
+const commChainInterruptHintEl = document.getElementById("commChainInterruptHint");
 const commChainTitleEl = document.getElementById("commChainTitle");
 const commChainStatusEl = document.getElementById("commChainStatus");
 const commChainProgressEl = document.getElementById("commChainProgress");
+const commChainProgressBar = document.getElementById("commChainProgressBar");
 const commChainDelayEl = document.getElementById("commChainDelay");
 const commPhasesEl = document.getElementById("commPhases");
 const commRewardsEl = document.getElementById("commRewards");
@@ -798,8 +801,10 @@ const commChains = [
   {
     id: "supply_relay",
     name: "极地补给中继任务链",
-    description: "基地要求建立完整通信链路，以便空投补给的精确定位与协调。",
+    description: "基地要求建立完整通信链路，以便空投补给的精确定位与协调。侧重资源补给与士气提升，暴风雪影响较重。",
     icon: "📡",
+    accentColor: "#357a90",
+    interruptWeathers: ["暴风雪"],
     phases: [
       {
         id: "handshake",
@@ -845,6 +850,116 @@ const commChains = [
         commMin: 3,
         reward: { data: 25, fuel: 5, morale: 5 },
         log: "【通信】全链路签收完成！基地授予「极区通信保障先锋」集体嘉奖，数据+25。"
+      }
+    ]
+  },
+  {
+    id: "research_data",
+    name: "科研数据回传任务链",
+    description: "将站点采集的高价值科研数据分批传回国内数据中心。侧重数据产出，对通信稳定性要求高，低温天气会降低传输效率。",
+    icon: "🔬",
+    accentColor: "#6267a6",
+    interruptWeathers: ["暴风雪", "低温"],
+    phases: [
+      {
+        id: "bandwidth_test",
+        name: "带宽测试",
+        desc: "测试不同频段的数据传输速率，选择最优通道。",
+        requiredDays: 1,
+        commMin: 3,
+        reward: { data: 8 },
+        log: "【通信】带宽测试完成。选定 Ku 波段作为主数据通道，峰值速率 2.4 Mbps。"
+      },
+      {
+        id: "ice_core_data",
+        name: "冰芯数据上传",
+        desc: "上传冰芯同位素分析原始数据与密度扫描图谱。",
+        requiredDays: 2,
+        commMin: 4,
+        reward: { data: 22, morale: 2 },
+        log: "【通信】冰芯数据包全部送达。数据中心回复：检测到末次冰期异常信号，需进一步验证。"
+      },
+      {
+        id: "aerosol_data",
+        name: "气溶胶观测数据回传",
+        desc: "传输三个月来的气溶胶颗粒光谱采样与粒径分布。",
+        requiredDays: 2,
+        commMin: 4,
+        reward: { data: 28 },
+        log: "【通信】气溶胶观测数据入库。基地大气组：黑碳浓度曲线与北极站点高度相关，已联合发文。"
+      },
+      {
+        id: "astronomy_data",
+        name: "天文观测数据包",
+        desc: "打包极夜期间的中微子探测与极光光谱数据回传。",
+        requiredDays: 2,
+        commMin: 5,
+        reward: { data: 35, morale: 6 },
+        log: "【通信】天文数据包完成校验。中微子实验组：发现新的能量阈值异常，可能改写模型。"
+      },
+      {
+        id: "final_dataset",
+        name: "完整数据集归档",
+        desc: "生成最终校验和并将全量数据集标记为可发布。",
+        requiredDays: 1,
+        commMin: 3,
+        reward: { data: 40, morale: 8 },
+        log: "【通信】完整数据集归档成功！被收录进国家极地科学数据中心，数据+40，授予集体表彰。"
+      }
+    ]
+  },
+  {
+    id: "emergency_medical",
+    name: "紧急医疗联络任务链",
+    description: "为队员建立与后方医疗专家组的远程会诊链路。侧重士气保障与应急处置，对实时性要求高，任何恶劣天气都可能造成会诊中断。",
+    icon: "🏥",
+    accentColor: "#c85f46",
+    interruptWeathers: ["暴风雪", "低温", "极夜静风"],
+    phases: [
+      {
+        id: "medical_handshake",
+        name: "医疗专线握手",
+        desc: "建立与基地医疗中心的加密专线，测试音视频连通性。",
+        requiredDays: 1,
+        commMin: 2,
+        reward: { morale: 5, food: 3 },
+        log: "【通信】医疗专线已接通。医疗中心：全员健康档案已同步，随时待命。"
+      },
+      {
+        id: "crew_health_report",
+        name: "队员健康评估上报",
+        desc: "上传全员体征数据、心理健康问卷与体检报告供专家组评估。",
+        requiredDays: 1,
+        commMin: 3,
+        reward: { morale: 6 },
+        log: "【通信】健康评估完成。专家组建议：加强维生素 D 补充，注意心理疏导频次。"
+      },
+      {
+        id: "tele_consultation",
+        name: "远程会诊演练",
+        desc: "模拟一例冻伤紧急处置，与后方医疗团队进行联合演练。",
+        requiredDays: 2,
+        commMin: 4,
+        reward: { morale: 10, food: 5 },
+        log: "【通信】远程会诊演练成功。医疗中心：站点处置流程规范，响应时间优于平均水平。"
+      },
+      {
+        id: "emergency_protocol",
+        name: "应急方案对接",
+        desc: "与后方确认极端情况下的医疗后送、药品空投等应急方案细节。",
+        requiredDays: 1,
+        commMin: 4,
+        reward: { morale: 8, fuel: 8 },
+        log: "【通信】应急方案全部对接完成。直升机后送航线已标注，药品空投坐标已录入系统。"
+      },
+      {
+        id: "medical_certification",
+        name: "医疗保障资质认证",
+        desc: "完成全部医疗流程考核，获得基地颁发的极地医疗保障资质。",
+        requiredDays: 1,
+        commMin: 3,
+        reward: { morale: 15, data: 12 },
+        log: "【通信】医疗保障资质认证通过！基地授予「极地医疗保障达标站」称号，士气大幅提升。"
       }
     ]
   }
@@ -1182,8 +1297,7 @@ function createInitialSamples() {
   return samples;
 }
 
-function createInitialCommChain() {
-  const chain = commChains[0];
+function createInitialCommChainState(chain) {
   return {
     chainId: chain.id,
     currentPhaseIndex: 0,
@@ -1194,6 +1308,14 @@ function createInitialCommChain() {
     isComplete: false,
     specialLogs: []
   };
+}
+
+function createInitialCommChains() {
+  const chains = {};
+  commChains.forEach((c) => {
+    chains[c.id] = createInitialCommChainState(c);
+  });
+  return chains;
 }
 
 function freshState() {
@@ -1214,7 +1336,9 @@ function freshState() {
     equipment: createInitialEquipment(),
     samples: createInitialSamples(),
     sampleValueLostToday: {},
-    commChain: createInitialCommChain(),
+    commChains: createInitialCommChains(),
+    activeCommChainId: commChains[0].id,
+    lastCommAdvancedDay: 0,
     log: ["站内安静得只剩风声，等待选择任务。"]
   };
 }
@@ -1611,7 +1735,9 @@ function start() {
     equipment: createInitialEquipment(),
     samples: createInitialSamples(),
     sampleValueLostToday: {},
-    commChain: createInitialCommChain(),
+    commChains: createInitialCommChains(),
+    activeCommChainId: commChains[0].id,
+    lastCommAdvancedDay: 0,
     log: [mission.intro]
   };
   resultEl.classList.add("hidden");
@@ -1789,7 +1915,9 @@ function startCampaignChapter(chapterIndex) {
     equipment: carryoverEquipment ? JSON.parse(JSON.stringify(carryoverEquipment)) : createInitialEquipment(),
     samples: carryoverSamples ? JSON.parse(JSON.stringify(carryoverSamples)) : createInitialSamples(),
     sampleValueLostToday: {},
-    commChain: createInitialCommChain(),
+    commChains: createInitialCommChains(),
+    activeCommChainId: commChains[0].id,
+    lastCommAdvancedDay: 0,
     log: [chapter.narrative.split("\n")[0]]
   };
 
@@ -2196,10 +2324,10 @@ function endDay() {
         if (commResult.rewardApplied.morale) rw.push(`士气+${commResult.rewardApplied.morale}`);
         if (commResult.rewardApplied.data) rw.push(`数据+${commResult.rewardApplied.data}`);
       }
-      settlementLines.push(`【通信任务·阶段完成】✅ ${commResult.phaseName} 完成！${rw.length ? `奖励：${rw.join('，')}` : ''}`);
-      settlementLines.push(`【通信任务·基地密文】${commResult.log.replace(/^【通信】/, '')}`);
+      settlementLines.push(`【通信任务·阶段完成】✅「${commResult.chainName || "任务链"}」${commResult.phaseName} 完成！${rw.length ? `奖励：${rw.join('，')}` : ''}`);
+      settlementLines.push(`【通信任务·基地密文】${commResult.log.replace(/^【通信】/, '').replace(/^【通信.*?】/, '')}`);
     } else if (commResult.completed) {
-      settlementLines.push(`【通信任务链·全部完成】🎉 远程通信任务链圆满收尾，基地集体嘉奖令已颁发！`);
+      settlementLines.push(`【通信任务链·全部完成】🎉「${commResult.chainName || "远程通信任务链"}」圆满收尾，基地集体嘉奖令已颁发！`);
     } else {
       settlementLines.push(commResult.log);
     }
@@ -2438,6 +2566,12 @@ function finishCampaignChapter(success) {
 
   const sampleStats = calculateSampleTotalValue();
 
+  const chainsComplete = {};
+  Object.keys(state.commChains).forEach((cid) => {
+    chainsComplete[cid] = state.commChains[cid].isComplete;
+  });
+  const anyChainComplete = Object.values(chainsComplete).some((v) => v);
+
   const outcome = {
     chapterId: chapter.id,
     chapterIndex: campaignState.chapterIndex,
@@ -2451,7 +2585,8 @@ function finishCampaignChapter(success) {
     crew: JSON.parse(JSON.stringify(state.crew)),
     equipment: JSON.parse(JSON.stringify(state.equipment)),
     samples: JSON.parse(JSON.stringify(state.samples)),
-    commComplete: state.commChain.isComplete
+    commComplete: anyChainComplete,
+    commChainsComplete: chainsComplete
   };
   campaignState.chapterOutcomes.push(outcome);
 
@@ -2463,7 +2598,11 @@ function finishCampaignChapter(success) {
   const objResults = objectives ? objectives.map((obj) => {
     let val, passed;
     if (obj.id === "commChain") {
-      val = state.commChain.isComplete ? 1 : 0;
+      val = anyChainComplete ? 1 : 0;
+      passed = val >= obj.min;
+    } else if (obj.id.startsWith("commChain_")) {
+      const targetId = obj.id.replace("commChain_", "");
+      val = state.commChains[targetId] && state.commChains[targetId].isComplete ? 1 : 0;
       passed = val >= obj.min;
     } else {
       val = state[obj.id] || 0;
@@ -2485,7 +2624,8 @@ function finishCampaignChapter(success) {
     data: state.data,
     sampleValue: sampleStats.totalValue,
     sampleIntegrity: sampleStats.avgIntegrity,
-    commComplete: state.commChain.isComplete,
+    commComplete: anyChainComplete,
+    commChainsComplete: chainsComplete,
     score: Math.max(0, state.data + state.fuel + state.food + state.morale),
     ending: success ? "章节通过" : "章节失败",
     crew: JSON.parse(JSON.stringify(state.crew))
@@ -2509,9 +2649,17 @@ function showChapterSettlement(chapter, success, allObjectivesMet, objResults, o
     { label: "士气", val: outcome.morale },
     { label: "食物", val: outcome.food },
     { label: "科研数据", val: outcome.data },
-    { label: "样本价值", val: outcome.sampleValue },
-    { label: "通信完成", val: outcome.commComplete ? "✅" : "❌" }
+    { label: "样本价值", val: outcome.sampleValue }
   ];
+  if (outcome.commChainsComplete) {
+    Object.keys(outcome.commChainsComplete).forEach((cid) => {
+      const chain = commChains.find((c) => c.id === cid);
+      const name = chain ? `${chain.icon}${chain.name}` : cid;
+      stats.push({ label: name, val: outcome.commChainsComplete[cid] ? "✅" : "❌" });
+    });
+  } else {
+    stats.push({ label: "通信完成", val: outcome.commComplete ? "✅" : "❌" });
+  }
   stats.forEach((s) => {
     const el = document.createElement("div");
     el.className = "chapter-settle-stat";
@@ -2727,6 +2875,12 @@ function finish(success) {
     ? extraGoals.map((g) => `<p class="result-goal" style="background:rgba(143,169,174,0.25);margin-top:6px">${g}</p>`).join("")
     : "";
 
+  const chainsComplete = {};
+  Object.keys(state.commChains).forEach((cid) => {
+    chainsComplete[cid] = state.commChains[cid].isComplete;
+  });
+  const anyChainComplete = Object.values(chainsComplete).some((v) => v);
+
   saveArchiveRecord({
     success: actualSuccess,
     missionName: state.mission.name + (isCustom ? "（自定义）" : ""),
@@ -2737,7 +2891,8 @@ function finish(success) {
     data: state.data,
     sampleValue: sampleValue,
     sampleIntegrity: sampleIntegrity,
-    commComplete: state.commChain.isComplete,
+    commComplete: anyChainComplete,
+    commChainsComplete: chainsComplete,
     score: score,
     ending: resultText,
     crew: JSON.parse(JSON.stringify(state.crew))
@@ -2799,14 +2954,21 @@ function finish(success) {
   if (tutorialActive) endTutorial();
 }
 
-function getCommChain() {
-  return commChains.find((c) => c.id === state.commChain.chainId);
+function getCommChain(chainId) {
+  const id = chainId || state.activeCommChainId;
+  return commChains.find((c) => c.id === id);
 }
 
-function getCurrentPhase() {
-  const chain = getCommChain();
+function getCommChainState(chainId) {
+  const id = chainId || state.activeCommChainId;
+  return state.commChains[id];
+}
+
+function getCurrentPhase(chainId) {
+  const chain = getCommChain(chainId);
   if (!chain) return null;
-  const idx = state.commChain.currentPhaseIndex;
+  const cs = getCommChainState(chainId);
+  const idx = cs.currentPhaseIndex;
   if (idx >= chain.phases.length) return null;
   return chain.phases[idx];
 }
@@ -2820,92 +2982,138 @@ function processCommChainDay(eqEffects) {
     delayed: false,
     rewardApplied: null,
     log: null,
-    phaseName: null
+    phaseName: null,
+    chainId: state.activeCommChainId,
+    chainName: null,
+    skipped: false
   };
 
-  if (state.commChain.isComplete) return result;
+  const activeChainId = state.activeCommChainId;
+  const chain = getCommChain(activeChainId);
+  const cs = getCommChainState(activeChainId);
+  if (!chain || !cs) return result;
 
-  const chain = getCommChain();
-  const phase = getCurrentPhase();
-  if (!chain || !phase) return result;
+  result.chainName = chain.name;
+
+  if (cs.isComplete) {
+    result.log = `【通信】「${chain.name}」已全部完成，今日无推进。`;
+    return result;
+  }
+
+  if (state.lastCommAdvancedDay === state.day) {
+    result.skipped = true;
+    result.log = `【通信】今日已推进过其他任务链，同一天只能推进一条，跳过「${chain.name}」。`;
+    return result;
+  }
+
+  const phase = getCurrentPhase(activeChainId);
+  if (!phase) return result;
 
   result.phaseName = phase.name;
 
   const commAllocated = state.allocations.comm;
   const commRequired = state.weather.comm;
   const commOk = commAllocated >= commRequired;
-  const isBlizzard = state.weather.name === "暴风雪";
   const commEfficiency = eqEffects ? eqEffects.commEfficiency : 1.0;
 
   const effectiveCommMin = Math.ceil(phase.commMin / Math.max(0.4, commEfficiency));
 
-  if (isBlizzard) {
+  const isInterruptWeather = chain.interruptWeathers && chain.interruptWeathers.includes(state.weather.name);
+
+  if (isInterruptWeather) {
     result.interrupted = true;
-    const loss = Math.ceil(state.commChain.phaseProgress * COMM_INTERRUPT_PENALTY);
-    state.commChain.phaseProgress = Math.max(0, state.commChain.phaseProgress - loss);
-    if (state.commChain.delayDays < COMM_DELAY_MAX) {
-      state.commChain.delayDays += 1;
+    const loss = Math.ceil(cs.phaseProgress * COMM_INTERRUPT_PENALTY);
+    cs.phaseProgress = Math.max(0, cs.phaseProgress - loss);
+    if (cs.delayDays < COMM_DELAY_MAX) {
+      cs.delayDays += 1;
       result.delayed = true;
     }
-    result.log = `【通信中断】暴风雪干扰信号，${phase.name}进度-${loss}天（保留${state.commChain.phaseProgress}天）。${state.commChain.delayDays > 0 ? `累计延迟${state.commChain.delayDays}天。` : ""}`;
+    result.log = `【通信中断·${chain.name}】${state.weather.name}干扰信号，${phase.name}进度-${loss}天（保留${cs.phaseProgress}天）。${cs.delayDays > 0 ? `累计延迟${cs.delayDays}天。` : ""}`;
     return result;
   }
 
   if (!commOk || commAllocated < effectiveCommMin) {
     result.interrupted = true;
     const reason = !commOk ? "未达天气通信最低需求" : `通信格数${commAllocated}未达阶段需求${effectiveCommMin}`;
-    const loss = Math.ceil(state.commChain.phaseProgress * COMM_INTERRUPT_PENALTY);
-    state.commChain.phaseProgress = Math.max(0, state.commChain.phaseProgress - loss);
-    if (state.commChain.delayDays < COMM_DELAY_MAX) {
-      state.commChain.delayDays += 1;
+    const loss = Math.ceil(cs.phaseProgress * COMM_INTERRUPT_PENALTY);
+    cs.phaseProgress = Math.max(0, cs.phaseProgress - loss);
+    if (cs.delayDays < COMM_DELAY_MAX) {
+      cs.delayDays += 1;
       result.delayed = true;
     }
-    result.log = `【通信中断】${reason}，${phase.name}进度-${loss}天（保留${state.commChain.phaseProgress}天）。${state.commChain.delayDays > 0 ? `累计延迟${state.commChain.delayDays}天。` : ""}`;
+    result.log = `【通信中断·${chain.name}】${reason}，${phase.name}进度-${loss}天（保留${cs.phaseProgress}天）。${cs.delayDays > 0 ? `累计延迟${cs.delayDays}天。` : ""}`;
     return result;
   }
 
-  state.commChain.delayDays = Math.max(0, state.commChain.delayDays - 1);
-  state.commChain.phaseProgress += 1;
+  cs.delayDays = Math.max(0, cs.delayDays - 1);
+  cs.phaseProgress += 1;
   result.advanced = true;
+  state.lastCommAdvancedDay = state.day;
 
-  if (state.commChain.phaseProgress >= phase.requiredDays) {
+  if (cs.phaseProgress >= phase.requiredDays) {
     result.phaseCompleted = true;
-    state.commChain.completedPhases.push(phase.id);
+    cs.completedPhases.push(phase.id);
 
     if (phase.reward) {
       result.rewardApplied = { ...phase.reward };
-      if (phase.reward.fuel) { state.fuel += phase.reward.fuel; state.commChain.totalRewards.fuel += phase.reward.fuel; }
-      if (phase.reward.food) { state.food += phase.reward.food; state.commChain.totalRewards.food += phase.reward.food; }
-      if (phase.reward.morale) { state.morale += phase.reward.morale; state.commChain.totalRewards.morale += phase.reward.morale; }
-      if (phase.reward.data) { state.data += phase.reward.data; state.commChain.totalRewards.data += phase.reward.data; }
+      if (phase.reward.fuel) { state.fuel += phase.reward.fuel; cs.totalRewards.fuel += phase.reward.fuel; }
+      if (phase.reward.food) { state.food += phase.reward.food; cs.totalRewards.food += phase.reward.food; }
+      if (phase.reward.morale) { state.morale += phase.reward.morale; cs.totalRewards.morale += phase.reward.morale; }
+      if (phase.reward.data) { state.data += phase.reward.data; cs.totalRewards.data += phase.reward.data; }
     }
 
     if (phase.log) {
-      state.commChain.specialLogs.push({ phaseId: phase.id, phaseName: phase.name, text: phase.log, day: state.day });
+      cs.specialLogs.push({ phaseId: phase.id, phaseName: phase.name, text: phase.log, day: state.day });
       result.log = phase.log;
     }
 
-    state.commChain.currentPhaseIndex += 1;
-    state.commChain.phaseProgress = 0;
+    cs.currentPhaseIndex += 1;
+    cs.phaseProgress = 0;
 
-    if (state.commChain.currentPhaseIndex >= chain.phases.length) {
-      state.commChain.isComplete = true;
+    if (cs.currentPhaseIndex >= chain.phases.length) {
+      cs.isComplete = true;
       result.completed = true;
     }
   } else {
-    result.log = `【通信推进】${phase.name}进度+1天（${state.commChain.phaseProgress}/${phase.requiredDays}天）。`;
+    result.log = `【通信推进·${chain.name}】${phase.name}进度+1天（${cs.phaseProgress}/${phase.requiredDays}天）。`;
   }
 
   return result;
 }
 
 function renderCommChain() {
+  if (commChainSelectorEl) {
+    commChainSelectorEl.innerHTML = "";
+    commChains.forEach((chain) => {
+      const cs = state.commChains[chain.id];
+      const isActive = state.activeCommChainId === chain.id;
+      const isComplete = cs && cs.isComplete;
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = `comm-chain-chip ${isActive ? "active" : ""} ${isComplete ? "done" : ""}`;
+      if (chain.accentColor) chip.style.setProperty("--chain-accent", chain.accentColor);
+      chip.innerHTML = `<span class="comm-chain-chip-icon">${chain.icon}</span><span class="comm-chain-chip-name">${chain.name}</span>${isComplete ? '<span class="comm-chain-chip-done">✓</span>' : ""}`;
+      chip.addEventListener("click", () => {
+        state.activeCommChainId = chain.id;
+        render();
+      });
+      commChainSelectorEl.appendChild(chip);
+    });
+  }
+
   const chain = getCommChain();
   if (!chain) return;
+  const cc = getCommChainState();
 
   commChainTitleEl.textContent = chain.name;
+  const descEl = document.querySelector(".comm-chain-desc");
+  if (descEl) descEl.textContent = chain.description;
 
-  const cc = state.commChain;
+  const panel = document.getElementById("commPanel");
+  if (panel && chain.accentColor) {
+    panel.style.setProperty("--chain-accent", chain.accentColor);
+  }
+
   let statusClass = "";
   let statusText = "";
 
@@ -2930,11 +3138,17 @@ function renderCommChain() {
     commChainProgressEl.textContent = `${cc.phaseProgress} / ${phase.requiredDays} 天`;
     const pct = Math.round((cc.phaseProgress / phase.requiredDays) * 100);
     const bar = commChainProgressBar.querySelector(".comm-progress-fill");
-    if (bar) bar.style.width = pct + "%";
+    if (bar) {
+      bar.style.width = pct + "%";
+      if (chain.accentColor) bar.style.background = `linear-gradient(90deg, ${chain.accentColor}, ${lightenColor(chain.accentColor, 20)})`;
+    }
   } else if (cc.isComplete) {
     commChainProgressEl.textContent = `${chain.phases.length} / ${chain.phases.length} 阶段`;
     const bar = commChainProgressBar.querySelector(".comm-progress-fill");
-    if (bar) bar.style.width = "100%";
+    if (bar) {
+      bar.style.width = "100%";
+      if (chain.accentColor) bar.style.background = `linear-gradient(90deg, ${chain.accentColor}, ${lightenColor(chain.accentColor, 20)})`;
+    }
   } else {
     commChainProgressEl.textContent = "0 / 0 天";
     const bar = commChainProgressBar.querySelector(".comm-progress-fill");
@@ -2948,6 +3162,15 @@ function renderCommChain() {
     commChainDelayEl.classList.add("hidden");
   }
 
+  if (commChainInterruptHintEl) {
+    if (chain.interruptWeathers && chain.interruptWeathers.length > 0 && !cc.isComplete) {
+      commChainInterruptHintEl.classList.remove("hidden");
+      commChainInterruptHintEl.textContent = `⚠ 中断天气：${chain.interruptWeathers.join("、")}`;
+    } else {
+      commChainInterruptHintEl.classList.add("hidden");
+    }
+  }
+
   commPhasesEl.innerHTML = "";
   chain.phases.forEach((p, idx) => {
     const isDone = cc.completedPhases.includes(p.id);
@@ -2956,6 +3179,7 @@ function renderCommChain() {
 
     const phaseEl = document.createElement("div");
     phaseEl.className = `comm-phase ${isDone ? "done" : ""} ${isCurrent ? "current" : ""} ${isDelayed ? "delayed" : ""}`;
+    if (chain.accentColor) phaseEl.style.setProperty("--chain-accent", chain.accentColor);
 
     let iconText = String(idx + 1);
     if (isDone) iconText = "✓";
@@ -3014,6 +3238,19 @@ function renderCommChain() {
   } else {
     commLogsEl.classList.add("hidden");
   }
+}
+
+function lightenColor(hex, percent) {
+  const num = parseInt(hex.replace("#", ""), 16);
+  const amt = Math.round(2.55 * percent);
+  const R = (num >> 16) + amt;
+  const G = (num >> 8 & 0x00FF) + amt;
+  const B = (num & 0x0000FF) + amt;
+  return "#" + (0x1000000 +
+    (R < 255 ? R < 1 ? 0 : R : 255) * 0x10000 +
+    (G < 255 ? G < 1 ? 0 : G : 255) * 0x100 +
+    (B < 255 ? B < 1 ? 0 : B : 255)
+  ).toString(16).slice(1);
 }
 
 function normalize() {
@@ -3116,18 +3353,23 @@ function render() {
     } else if (labPower > 0) {
       extraHints.push(`实验${labPower}格未达最低产出门槛（最低2格）`);
     }
+    const curChain = getCommChain();
+    const curChainState = getCommChainState();
     const curPhase = getCurrentPhase();
-    if (curPhase && !state.commChain.isComplete) {
+    if (curChain && curChainState && curPhase && !curChainState.isComplete) {
       const eqEff = calculateEquipmentEffects();
       const effCommMin = Math.ceil(curPhase.commMin / Math.max(0.4, eqEff.commEfficiency));
-      const isBlizzard = state.weather.name === "暴风雪";
-      if (isBlizzard) {
-        extraHints.push(`📡任务链「${curPhase.name}」暴风雪将中断进度（不清零）`);
+      const isInterruptWeather = curChain.interruptWeathers && curChain.interruptWeathers.includes(state.weather.name);
+      const alreadyAdvanced = state.lastCommAdvancedDay === state.day;
+      if (alreadyAdvanced) {
+        extraHints.push(`📡今日已推进过任务链，「${curChain.name}」暂不推进`);
+      } else if (isInterruptWeather) {
+        extraHints.push(`📡「${curChain.name}」${state.weather.name}将中断「${curPhase.name}」进度（不清零）`);
       } else {
-        extraHints.push(`📡任务链「${curPhase.name}」需通信≥${Math.max(effCommMin, state.weather.comm)}格以推进（${state.commChain.phaseProgress}/${curPhase.requiredDays}）`);
+        extraHints.push(`📡「${curChain.name}」「${curPhase.name}」需通信≥${Math.max(effCommMin, state.weather.comm)}格以推进（${curChainState.phaseProgress}/${curPhase.requiredDays}）`);
       }
-    } else if (state.commChain.isComplete) {
-      extraHints.push(`📡任务链全部完成 ✅`);
+    } else if (curChainState && curChainState.isComplete) {
+      extraHints.push(`📡「${curChain.name}」全部完成 ✅`);
     }
     const crewPreview = previewCrewEffects();
     if (crewPreview.summary) extraHints.push(crewPreview.summary);
@@ -3141,7 +3383,17 @@ function render() {
           ? chapter.getObjectives(campaignState.choices)
           : chapter.objectives;
         const objHints = objectives ? objectives.map(o => {
-          const val = o.id === "commChain" ? (state.commChain.isComplete ? "✅" : "❌") : (state[o.id] || 0);
+          let val;
+          if (o.id === "commChain") {
+            const anyComplete = Object.values(state.commChains).some(c => c.isComplete);
+            val = anyComplete ? "✅" : "❌";
+          } else if (o.id.startsWith("commChain_")) {
+            const targetId = o.id.replace("commChain_", "");
+            const cs = state.commChains[targetId];
+            val = cs && cs.isComplete ? "✅" : "❌";
+          } else {
+            val = state[o.id] || 0;
+          }
           return `${o.icon}${o.name}${typeof val === "number" ? ":" + val + "/≥" + o.min : val}`;
         }).join(" ") : "";
         extraHints.push(`📖 ${chapter.badge}「${chapter.name}」${objHints}`);
@@ -3375,7 +3627,15 @@ function showArchiveDetail(record) {
   archiveDetailData.textContent = record.data;
   archiveDetailSampleValue.textContent = record.sampleValue || 0;
   archiveDetailSampleIntegrity.textContent = record.sampleIntegrity !== undefined ? record.sampleIntegrity + '%' : '—';
-  if (record.commComplete !== undefined) {
+  if (record.commChainsComplete) {
+    const parts = [];
+    Object.keys(record.commChainsComplete).forEach((cid) => {
+      const chain = commChains.find((c) => c.id === cid);
+      const name = chain ? chain.name : cid;
+      parts.push(`${chain ? chain.icon : "📡"}${name}：${record.commChainsComplete[cid] ? "✅" : "❌"}`);
+    });
+    archiveDetailComm.innerHTML = parts.join("<br>");
+  } else if (record.commComplete !== undefined) {
     archiveDetailComm.textContent = record.commComplete ? "✅完成" : "❌未完成";
   } else {
     archiveDetailComm.textContent = "—";
@@ -4615,38 +4875,49 @@ function computeDayPreview() {
     });
   });
 
-  const commPreview = { advanced: false, interrupted: false, phaseName: null };
+  const commPreview = { advanced: false, interrupted: false, phaseName: null, chainName: null, skipped: false };
+  const curChain = getCommChain();
+  const curChainState = getCommChainState();
   const curPhase = getCurrentPhase();
-  if (curPhase && !state.commChain.isComplete) {
+  if (curChain && curChainState && curPhase && !curChainState.isComplete) {
     commPreview.phaseName = curPhase.name;
-    const commEfficiency = eqEffects ? eqEffects.commEfficiency : 1.0;
-    const effectiveCommMin = Math.ceil(curPhase.commMin / Math.max(0.4, commEfficiency));
-    const isBlizzard = state.weather.name === "暴风雪";
-    if (isBlizzard) {
-      commPreview.interrupted = true;
-      const loss = Math.ceil(state.commChain.phaseProgress * COMM_INTERRUPT_PENALTY);
-      commPreview.progressAfter = Math.max(0, state.commChain.phaseProgress - loss);
-      commPreview.reason = "暴风雪将中断进度（不清零）";
-    } else if (!commOk || state.allocations.comm < effectiveCommMin) {
-      commPreview.interrupted = true;
-      const loss = Math.ceil(state.commChain.phaseProgress * COMM_INTERRUPT_PENALTY);
-      commPreview.progressAfter = Math.max(0, state.commChain.phaseProgress - loss);
-      commPreview.reason = !commOk ? "未达天气通信最低需求" : `通信格数未达阶段需求${effectiveCommMin}`;
+    commPreview.chainName = curChain.name;
+    const alreadyAdvanced = state.lastCommAdvancedDay === state.day;
+    if (alreadyAdvanced) {
+      commPreview.skipped = true;
+      commPreview.reason = "今日已推进过其他任务链，同一天只能推进一条";
+      commPreview.progressAfter = curChainState.phaseProgress;
+      commPreview.requiredDays = curPhase.requiredDays;
     } else {
-      commPreview.advanced = true;
-      commPreview.progressAfter = state.commChain.phaseProgress + 1;
-      if (commPreview.progressAfter >= curPhase.requiredDays) {
-        commPreview.phaseCompleted = true;
-        if (curPhase.reward) {
-          commPreview.rewardApplied = { ...curPhase.reward };
-          if (curPhase.reward.fuel) previewFuel += curPhase.reward.fuel;
-          if (curPhase.reward.food) previewFood += curPhase.reward.food;
-          if (curPhase.reward.morale) previewMorale += curPhase.reward.morale;
-          if (curPhase.reward.data) previewData += curPhase.reward.data;
+      const commEfficiency = eqEffects ? eqEffects.commEfficiency : 1.0;
+      const effectiveCommMin = Math.ceil(curPhase.commMin / Math.max(0.4, commEfficiency));
+      const isInterruptWeather = curChain.interruptWeathers && curChain.interruptWeathers.includes(state.weather.name);
+      if (isInterruptWeather) {
+        commPreview.interrupted = true;
+        const loss = Math.ceil(curChainState.phaseProgress * COMM_INTERRUPT_PENALTY);
+        commPreview.progressAfter = Math.max(0, curChainState.phaseProgress - loss);
+        commPreview.reason = `${state.weather.name}将中断进度（不清零）`;
+      } else if (!commOk || state.allocations.comm < effectiveCommMin) {
+        commPreview.interrupted = true;
+        const loss = Math.ceil(curChainState.phaseProgress * COMM_INTERRUPT_PENALTY);
+        commPreview.progressAfter = Math.max(0, curChainState.phaseProgress - loss);
+        commPreview.reason = !commOk ? "未达天气通信最低需求" : `通信格数未达阶段需求${effectiveCommMin}`;
+      } else {
+        commPreview.advanced = true;
+        commPreview.progressAfter = curChainState.phaseProgress + 1;
+        if (commPreview.progressAfter >= curPhase.requiredDays) {
+          commPreview.phaseCompleted = true;
+          if (curPhase.reward) {
+            commPreview.rewardApplied = { ...curPhase.reward };
+            if (curPhase.reward.fuel) previewFuel += curPhase.reward.fuel;
+            if (curPhase.reward.food) previewFood += curPhase.reward.food;
+            if (curPhase.reward.morale) previewMorale += curPhase.reward.morale;
+            if (curPhase.reward.data) previewData += curPhase.reward.data;
+          }
         }
       }
+      commPreview.requiredDays = curPhase.requiredDays;
     }
-    commPreview.requiredDays = curPhase.requiredDays;
   }
 
   previewFuel = Math.max(0, Math.min(100, Math.round(previewFuel)));
@@ -4809,10 +5080,13 @@ function renderDayPreview() {
 
   let commHtml = "";
   const cp = preview.commPreview;
-  if (state.commChain.isComplete) {
-    commHtml = '<span class="preview-hint">通信链已完成 ✅</span>';
+  const activeChainState = getCommChainState();
+  if (activeChainState && activeChainState.isComplete) {
+    commHtml = `<span class="preview-hint">「${getCommChain().name}」已完成 ✅</span>`;
   } else if (cp.phaseName) {
-    if (cp.advanced) {
+    if (cp.skipped) {
+      commHtml = `<span class="preview-comm-chip chip-warn">📡「${cp.chainName || "任务链"}」${cp.reason}</span>`;
+    } else if (cp.advanced) {
       if (cp.phaseCompleted) {
         const rewards = [];
         if (cp.rewardApplied) {
@@ -4821,12 +5095,12 @@ function renderDayPreview() {
           if (cp.rewardApplied.morale) rewards.push(`士气+${cp.rewardApplied.morale}`);
           if (cp.rewardApplied.data) rewards.push(`科研成果+${cp.rewardApplied.data}`);
         }
-        commHtml = `<span class="preview-comm-chip chip-good">📡「${cp.phaseName}」阶段完成！进度 ${cp.progressAfter}/${cp.requiredDays}${rewards.length ? `，奖励：${rewards.join("、")}` : ""}</span>`;
+        commHtml = `<span class="preview-comm-chip chip-good">📡「${cp.chainName || "任务链"}」「${cp.phaseName}」阶段完成！进度 ${cp.progressAfter}/${cp.requiredDays}${rewards.length ? `，奖励：${rewards.join("、")}` : ""}</span>`;
       } else {
-        commHtml = `<span class="preview-comm-chip chip-ok">📡「${cp.phaseName}」推进中 ${cp.progressAfter}/${cp.requiredDays}</span>`;
+        commHtml = `<span class="preview-comm-chip chip-ok">📡「${cp.chainName || "任务链"}」「${cp.phaseName}」推进中 ${cp.progressAfter}/${cp.requiredDays}</span>`;
       }
     } else {
-      commHtml = `<span class="preview-comm-chip chip-warn">📡「${cp.phaseName}」${cp.reason}，进度${cp.progressAfter}/${cp.requiredDays}</span>`;
+      commHtml = `<span class="preview-comm-chip chip-warn">📡「${cp.chainName || "任务链"}」「${cp.phaseName}」${cp.reason}，进度${cp.progressAfter}/${cp.requiredDays}</span>`;
     }
   } else {
     commHtml = '<span class="preview-hint">通信链未激活</span>';
