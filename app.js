@@ -3690,7 +3690,7 @@ function updateCrewAfterDay() {
       member._consecutiveLowMood = 0;
     }
 
-    if (state.weather.name === "暴风雪" && !hasTempStatus(member, "shaken") && member.fatigue >= 50) {
+    if (todayStation !== "rest" && state.weather.name === "暴风雪" && !hasTempStatus(member, "shaken") && member.fatigue >= 50) {
       if (Math.random() < 0.3) {
         if (addTempStatus(member, "shaken")) {
           dayStatusEvents.push(`😰 ${member.name} 受暴风雪影响出现「心神不宁」`);
@@ -3698,14 +3698,16 @@ function updateCrewAfterDay() {
       }
     }
 
-    Object.values(tempStatusDefs).forEach((def) => {
-      if (!def.trigger) return;
-      if (def.trigger(member)) {
-        if (addTempStatus(member, def.id)) {
-          dayStatusEvents.push(`${def.icon} ${member.name} 获得临时状态「${def.name}」`);
+    if (todayStation !== "rest") {
+      Object.values(tempStatusDefs).forEach((def) => {
+        if (!def.trigger) return;
+        if (def.trigger(member)) {
+          if (addTempStatus(member, def.id)) {
+            dayStatusEvents.push(`${def.icon} ${member.name} 获得临时状态「${def.name}」`);
+          }
         }
-      }
-    });
+      });
+    }
 
     member.station = todayStation === "rest" ? null : null;
   });
