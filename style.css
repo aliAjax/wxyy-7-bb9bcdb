@@ -1788,6 +1788,13 @@ h2 {
   justify-content: center;
 }
 
+.chapter-intro-overlay.hidden,
+.branch-event-overlay.hidden,
+.chapter-settle-overlay.hidden,
+.campaign-ending-overlay.hidden {
+  display: none;
+}
+
 .chapter-intro-mask,
 .branch-event-mask,
 .chapter-settle-mask,
