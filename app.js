@@ -102,6 +102,16 @@ const ARCHIVE_KEY = "polar_station_archive";
 const ARCHIVE_LIMIT = 20;
 const TUTORIAL_KEY = "polar_station_tutorial_done";
 
+function hideAllOverlays() {
+  emergencyOverlay.classList.add("hidden");
+  tutorialOverlay.classList.add("hidden");
+  chapterIntroOverlay.classList.add("hidden");
+  branchEventOverlay.classList.add("hidden");
+  chapterSettleOverlay.classList.add("hidden");
+  campaignEndingOverlay.classList.add("hidden");
+  resultEl.classList.add("hidden");
+}
+
 const systems = [
   { id: "heat", name: "供暖", hint: "低于要求会冻伤士气，保障天文观测样本" },
   { id: "comm", name: "通信", hint: "保持求援和天气联系，保障气溶胶样本" },
@@ -1105,6 +1115,11 @@ function start() {
     return;
   }
 
+  hideAllOverlays();
+  emergencyPending = null;
+  branchEventPending = null;
+  tutorialActive = false;
+
   const mission = missions.find((m) => m.id === state.selectedMissionId);
   campaignState = null;
   state = {
@@ -1145,6 +1160,10 @@ function start() {
 }
 
 function startCampaign() {
+  hideAllOverlays();
+  emergencyPending = null;
+  branchEventPending = null;
+  tutorialActive = false;
   campaignState = createCampaignState();
   missionDeskEl.classList.add("hidden");
   showChapterIntro(0);
@@ -1203,6 +1222,10 @@ function showChapterIntro(chapterIndex) {
 function startCampaignChapter(chapterIndex) {
   const chapter = campaignChapters[chapterIndex];
   if (!chapter) return;
+
+  hideAllOverlays();
+  emergencyPending = null;
+  branchEventPending = null;
 
   campaignState.chapterIndex = chapterIndex;
   campaignState.triggeredBranches = [];
@@ -2001,9 +2024,16 @@ function showChapterSettlement(chapter, success, allObjectivesMet, objResults, o
     summaryEl.appendChild(el);
   });
 
+  const settlePassGetter = typeof chapter.getSettlementPass === "function"
+    ? chapter.getSettlementPass
+    : (typeof chapter.settlementPass === "function" ? chapter.settlementPass : null);
+  const settleFailGetter = typeof chapter.getSettlementFail === "function"
+    ? chapter.getSettlementFail
+    : (typeof chapter.settlementFail === "function" ? chapter.settlementFail : null);
+
   const settleText = success
-    ? (typeof chapter.settlementPass === "function" ? chapter.settlementPass(campaignState.choices) : chapter.settlementPass)
-    : (typeof chapter.settlementFail === "function" ? chapter.settlementFail(campaignState.choices) : chapter.settlementFail);
+    ? (settlePassGetter ? settlePassGetter(campaignState.choices) : (chapter.settlementPass || ""))
+    : (settleFailGetter ? settleFailGetter(campaignState.choices) : (chapter.settlementFail || ""));
 
   const nextChapter = campaignChapters[campaignState.chapterIndex + 1];
   let carryoverText = "";
@@ -2081,10 +2111,12 @@ function showCampaignEnding(lastChapterSuccess, allObjectivesMet) {
   campaignEndingChoices.innerHTML = choiceHtml;
 
   campaignEndingBtn.onclick = function() {
-    campaignEndingOverlay.classList.add("hidden");
+    hideAllOverlays();
+    emergencyPending = null;
+    branchEventPending = null;
+    tutorialActive = false;
     campaignState = null;
     state = freshState();
-    resultEl.classList.add("hidden");
     missionDeskEl.classList.remove("hidden");
     crewPanelEl.classList.add("hidden");
     workshopPanelEl.classList.add("hidden");
@@ -2183,9 +2215,12 @@ function finish(success) {
   controlsPanelEl.classList.add("hidden");
   campaignProgressEl.classList.add("hidden");
   document.getElementById("returnBtn").addEventListener("click", () => {
+    hideAllOverlays();
+    emergencyPending = null;
+    branchEventPending = null;
+    tutorialActive = false;
     state = freshState();
     campaignState = null;
-    resultEl.classList.add("hidden");
     missionDeskEl.classList.remove("hidden");
     crewPanelEl.classList.add("hidden");
     workshopPanelEl.classList.add("hidden");
