@@ -145,6 +145,7 @@ const editorFields = {
 };
 
 let editorEditingId = null;
+let editorSaveHintTimer = null;
 
 function hideAllOverlays() {
   emergencyOverlay.classList.add("hidden");
@@ -3568,6 +3569,8 @@ function validateLevelConfig(config) {
 }
 
 function showValidationResult(result) {
+  clearEditorSaveHintTimer();
+
   if (!result) {
     editorValidation.classList.add("hidden");
     editorValidation.className = "editor-validation hidden";
@@ -3596,6 +3599,7 @@ function showValidationResult(result) {
 }
 
 function openEditor() {
+  clearEditorSaveHintTimer();
   levelEditorPanel.classList.remove("hidden");
   editorEditingId = null;
   editorDeleteBtn.classList.add("hidden");
@@ -3616,6 +3620,7 @@ function editLevel(id) {
   const level = levels.find((l) => l.id === id);
   if (!level) return;
 
+  clearEditorSaveHintTimer();
   editorEditingId = id;
   editorDeleteBtn.classList.remove("hidden");
   editorSaveBtn.textContent = "💾 更新此关卡";
@@ -3672,6 +3677,7 @@ function deleteLevel(id) {
 }
 
 function saveEditorLevel() {
+  clearEditorSaveHintTimer();
   const config = collectEditorConfig();
   const validation = validateLevelConfig(config);
 
@@ -3699,9 +3705,17 @@ function saveEditorLevel() {
   editorValidation.className = "editor-validation success";
   editorValidation.innerHTML = `<strong>✅ 已保存！</strong>关卡「${config.name}」已保存，可以在任务选择台中找到并游玩。`;
 
-  let saveHintTimer = setTimeout(() => {
+  editorSaveHintTimer = setTimeout(() => {
     editorValidation.classList.add("hidden");
+    editorSaveHintTimer = null;
   }, 2500);
+}
+
+function clearEditorSaveHintTimer() {
+  if (editorSaveHintTimer) {
+    clearTimeout(editorSaveHintTimer);
+    editorSaveHintTimer = null;
+  }
 }
 
 function renderSavedLevels() {
@@ -3737,6 +3751,7 @@ function initEditorEvents() {
   toggleEditorBtn.addEventListener("click", openEditor);
   closeEditorBtn.addEventListener("click", closeEditor);
   editorLoadDefaultBtn.addEventListener("click", () => {
+    clearEditorSaveHintTimer();
     populateEditor(getDefaultEditorConfig());
     editorEditingId = null;
     editorDeleteBtn.classList.add("hidden");
