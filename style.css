@@ -483,6 +483,26 @@ h2 {
   text-align: center;
 }
 
+.mission-comm-chain {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #eef2ff;
+  font-size: 12px;
+  margin-top: 8px;
+}
+
+.mission-comm-chain-label {
+  color: #4a4f7a;
+  font-weight: 600;
+}
+
+.mission-comm-chain-name {
+  font-weight: 700;
+}
+
 .mission-difficulty {
   display: flex;
   align-items: center;

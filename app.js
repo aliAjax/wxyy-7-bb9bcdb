@@ -403,6 +403,7 @@ const missions = [
     allocations: { heat: 3, comm: 2, lab: 4, food: 3 },
     dataGoal: 150,
     dataPerLab: 0,
+    defaultCommChain: "supply_relay",
     weatherWeight: null,
     intro: "值班开始，目标是撑过7天并尽量产出高价值科研样本。实验电力用于产出样本，样本价值等价计入数据总量。",
     successText: (s) =>
@@ -422,6 +423,7 @@ const missions = [
     dataGoal: 180,
     dataPerLab: 0,
     commBonus: 3,
+    defaultCommChain: "research_data",
     intro: "气象观测任务启动，保持通信畅通以获得额外观测数据，并分配足够电力产出气溶胶样本。目标科研成果≥180。",
     successText: (s) =>
       s.data >= s.mission.dataGoal
@@ -441,6 +443,7 @@ const missions = [
     allocations: { heat: 4, comm: 2, lab: 4, food: 2 },
     dataGoal: 220,
     dataPerLab: 0,
+    defaultCommChain: "research_data",
     weatherWeight: { 暴风雪: 3, 晴朗: 1, 低温: 2, 极夜静风: 2 },
     intro: "冰芯采样任务启动，分配更多电力给实验舱以获取高质量冰芯样本，并确保冷藏电力充足防止样本融化。目标科研成果≥220。",
     successText: (s) =>
@@ -463,6 +466,7 @@ const missions = [
     dataPerLab: 0,
     commMoraleBonus: true,
     foodReserve: true,
+    defaultCommChain: "supply_relay",
     intro: "通信中继任务启动，维持通信在线可阻止士气下降，甚至提振人心。兼顾样本产出，目标科研成果≥130。",
     successText: (s) =>
       s.data >= s.mission.dataGoal
@@ -582,6 +586,7 @@ const campaignChapters = [
     allocations: { heat: 3, comm: 2, lab: 4, food: 3 },
     weatherWeight: { "暴风雪": 3, "低温": 2, "极夜静风": 2, "晴朗": 1 },
     dataGoal: 80,
+    defaultCommChain: "supply_relay",
     objectives: [
       { id: "fuel", name: "柴油储备≥25", min: 25, icon: "⛽" },
       { id: "morale", name: "士气稳定≥35", min: 35, icon: "💪" },
@@ -674,6 +679,7 @@ const campaignChapters = [
       return { "暴风雪": 1, "低温": 2, "极夜静风": 3, "晴朗": 2 };
     },
     dataGoal: 120,
+    defaultCommChain: "research_data",
     getObjectives: function(choices) {
       const objs = [
         { id: "fuel", name: "柴油储备≥15", min: 15, icon: "⛽" },
@@ -1603,6 +1609,9 @@ function renderMissionCards() {
     const diffScore = getMissionDifficultyScore(mission);
     const diffLabel = diffScore < 25 ? "简单" : diffScore < 45 ? "中等" : "困难";
     const diffClass = diffScore < 25 ? "diff-easy" : diffScore < 45 ? "diff-medium" : "diff-hard";
+    const defaultChain = mission.defaultCommChain
+      ? commChains.find((c) => c.id === mission.defaultCommChain)
+      : null;
     card.innerHTML = `
       <div class="mission-card-head" style="background:${mission.color}">
         <span class="mission-tag">${mission.tag}</span>
@@ -1619,6 +1628,14 @@ function renderMissionCards() {
         <div class="mission-goal">
           目标：${goalFull}
         </div>
+        ${defaultChain ? `
+        <div class="mission-comm-chain">
+          <span class="mission-comm-chain-label">推荐通信链</span>
+          <span class="mission-comm-chain-name" style="color:${defaultChain.accentColor}">
+            ${defaultChain.icon} ${defaultChain.name}
+          </span>
+        </div>
+        ` : ""}
         <div class="mission-difficulty ${diffClass}">
           <span class="diff-label">难度</span>
           <span class="diff-bar"><span class="diff-fill"></span></span>
@@ -1736,7 +1753,7 @@ function start() {
     samples: createInitialSamples(),
     sampleValueLostToday: {},
     commChains: createInitialCommChains(),
-    activeCommChainId: commChains[0].id,
+    activeCommChainId: mission.defaultCommChain || commChains[0].id,
     lastCommAdvancedDay: 0,
     log: [mission.intro]
   };
@@ -1916,7 +1933,7 @@ function startCampaignChapter(chapterIndex) {
     samples: carryoverSamples ? JSON.parse(JSON.stringify(carryoverSamples)) : createInitialSamples(),
     sampleValueLostToday: {},
     commChains: createInitialCommChains(),
-    activeCommChainId: commChains[0].id,
+    activeCommChainId: chapter.defaultCommChain || commChains[0].id,
     lastCommAdvancedDay: 0,
     log: [chapter.narrative.split("\n")[0]]
   };
@@ -2968,6 +2985,7 @@ function getCurrentPhase(chainId) {
   const chain = getCommChain(chainId);
   if (!chain) return null;
   const cs = getCommChainState(chainId);
+  if (!cs) return null;
   const idx = cs.currentPhaseIndex;
   if (idx >= chain.phases.length) return null;
   return chain.phases[idx];
@@ -3104,6 +3122,7 @@ function renderCommChain() {
   const chain = getCommChain();
   if (!chain) return;
   const cc = getCommChainState();
+  if (!cc) return;
 
   commChainTitleEl.textContent = chain.name;
   const descEl = document.querySelector(".comm-chain-desc");
