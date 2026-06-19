@@ -1019,7 +1019,210 @@ h2 {
   opacity: 0.85;
 }
 
+.samples-panel {
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid #8fa9ae;
+  border-radius: 8px;
+  background: #f6fbfb;
+}
+
+.samples-overview {
+  display: flex;
+  gap: 12px;
+}
+
+.sample-overview-item {
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: #e8f1f2;
+  font-size: 13px;
+  color: #3e5f65;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sample-overview-item strong {
+  color: #13272b;
+  font-size: 16px;
+}
+
+.samples-tip {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fff3d6;
+  color: #725a1a;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 14px;
+  line-height: 1.5;
+}
+
+.sample-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.sample-card {
+  padding: 14px;
+  border-radius: 10px;
+  background: #fff;
+  border: 2px solid #c5d7da;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: border-color 0.15s ease;
+}
+
+.sample-card.sample-icecore { border-color: #bfc2e0; }
+.sample-card.sample-aerosol { border-color: #a5cfd9; }
+.sample-card.sample-astronomy { border-color: #8fa9ae; }
+.sample-card.sample-biotrace { border-color: #b5d5bc; }
+
+.sample-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.sample-icon {
+  font-size: 30px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.sample-card-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.sample-name {
+  font-weight: 700;
+  font-size: 15px;
+  color: #13272b;
+}
+
+.sample-desc {
+  font-size: 11px;
+  color: #63868c;
+  line-height: 1.4;
+  margin-top: 2px;
+}
+
+.sample-count {
+  font-size: 18px;
+  font-weight: 700;
+  color: #29464d;
+  background: #e5f0f1;
+  padding: 4px 8px;
+  border-radius: 8px;
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.sample-count small {
+  font-size: 11px;
+  font-weight: 400;
+  color: #63868c;
+  margin-left: 2px;
+}
+
+.sample-value-bar-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sample-value-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #63868c;
+}
+
+.sample-value-label strong {
+  color: #13272b;
+}
+
+.sample-value-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: #e8f1f2;
+  overflow: hidden;
+}
+
+.sample-value-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.25s ease;
+}
+
+.sample-req {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #e8f1f2;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sample-req-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #3e5f65;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.sample-req-title small {
+  font-weight: 400;
+  color: #63868c;
+  font-size: 10px;
+}
+
+.sample-req-values {
+  font-size: 12px;
+  color: #13272b;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+.sample-req-hint {
+  font-size: 11px;
+  color: #63868c;
+  line-height: 1.4;
+}
+
+.sample-stats-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.sample-stats-row span {
+  padding: 5px 7px;
+  border-radius: 6px;
+  background: #e8f1f2;
+  font-size: 11px;
+  color: #63868c;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sample-stats-row strong {
+  font-size: 13px;
+  color: #13272b;
+}
+
 @media (max-width: 900px) {
+  .sample-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
   .mission-cards {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -1029,18 +1232,28 @@ h2 {
     display: grid;
     grid-template-columns: 1fr;
   }
-
   .allocations,
   .modules {
     grid-template-columns: repeat(2, 1fr);
   }
-
   .equipment-cards {
     grid-template-columns: repeat(2, 1fr);
+  }
+  .crew-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .crew-summary {
+    grid-template-columns: repeat(3, 1fr);
   }
 }
 
 @media (max-width: 600px) {
+  .sample-cards {
+    grid-template-columns: 1fr;
+  }
+  .samples-overview {
+    flex-wrap: wrap;
+  }
   .equipment-cards {
     grid-template-columns: 1fr;
   }

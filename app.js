@@ -29,6 +29,11 @@ const crewRestEl = document.getElementById("crewRest");
 const workshopPanelEl = document.getElementById("workshopPanel");
 const equipmentCardsEl = document.getElementById("equipmentCards");
 
+const samplesPanelEl = document.getElementById("samplesPanel");
+const sampleCardsEl = document.getElementById("sampleCards");
+const sampleIntegrityEl = document.getElementById("sampleIntegrity");
+const sampleTotalValueEl = document.getElementById("sampleTotalValue");
+
 const emergencyOverlay = document.getElementById("emergencyOverlay");
 const emergencyIcon = document.getElementById("emergencyIcon");
 const emergencyName = document.getElementById("emergencyName");
@@ -65,6 +70,63 @@ const equipmentDefs = [
   { id: "lab", name: "实验仪器", icon: "🔬", baseDurLoss: 4, repairFuel: 6, upgradeFuel: 8, upgradeData: 15, maxLevel: 3 },
   { id: "food", name: "冷库机组", icon: "🧊", baseDurLoss: 5, repairFuel: 5, upgradeFuel: 10, upgradeData: 8, maxLevel: 3 }
 ];
+
+const sampleTypes = [
+  {
+    id: "icecore",
+    name: "冰芯样本",
+    icon: "🧊",
+    desc: "钻探自深层冰盖，封存着远古气候信号",
+    value: 15,
+    color: "#6267a6",
+    preserveReq: { food: 4 },
+    preserveHint: "需食物储藏电力≥4维持低温冷藏",
+    lossWhenFail: 28,
+    labPowerThreshold: 3,
+    labPowerBonus: 1.6
+  },
+  {
+    id: "aerosol",
+    name: "气溶胶样本",
+    icon: "💨",
+    desc: "极地大气微颗粒采样，需实时通信同步坐标",
+    value: 12,
+    color: "#357a90",
+    preserveReq: { comm: 3 },
+    preserveHint: "需通信电力≥3保持数据链路在线",
+    lossWhenFail: 22,
+    labPowerThreshold: 2,
+    labPowerBonus: 1.3
+  },
+  {
+    id: "astronomy",
+    name: "天文观测记录",
+    icon: "🔭",
+    desc: "极光与宇宙射线观测，需稳定温度保护感光元件",
+    value: 14,
+    color: "#29464d",
+    preserveReq: { heat: 3 },
+    preserveHint: "需供暖电力≥3维持观测舱恒温",
+    lossWhenFail: 25,
+    labPowerThreshold: 4,
+    labPowerBonus: 1.8
+  },
+  {
+    id: "biotrace",
+    name: "生物痕迹样本",
+    icon: "🧬",
+    desc: "极地微生物与冰层足迹，需多重条件保障",
+    value: 20,
+    color: "#4f8a5b",
+    preserveReq: { food: 3, heat: 2, comm: 2 },
+    preserveHint: "需冷藏+恒温+监控三重保障",
+    lossWhenFail: 35,
+    labPowerThreshold: 5,
+    labPowerBonus: 2.2
+  }
+];
+
+const sampleLossWarnThreshold = 15;
 
 const weatherDurMultiplier = { "晴朗": 1.0, "低温": 1.3, "暴风雪": 1.8, "极夜静风": 1.1 };
 
@@ -541,6 +603,19 @@ function createInitialEquipment() {
   return eq;
 }
 
+function createInitialSamples() {
+  const samples = {};
+  sampleTypes.forEach((t) => {
+    samples[t.id] = {
+      count: 0,
+      integrity: 100,
+      totalProduced: 0,
+      totalLost: 0
+    };
+  });
+  return samples;
+}
+
 function freshState() {
   const mission = missions.find((m) => m.id === "standard");
   return {
@@ -557,6 +632,8 @@ function freshState() {
     nextDayEffects: null,
     crew: createInitialCrew(),
     equipment: createInitialEquipment(),
+    samples: createInitialSamples(),
+    sampleValueLostToday: {},
     log: ["站内安静得只剩风声，等待选择任务。"]
   };
 }
@@ -630,12 +707,15 @@ function start() {
     nextDayEffects: null,
     crew: createInitialCrew(),
     equipment: createInitialEquipment(),
+    samples: createInitialSamples(),
+    sampleValueLostToday: {},
     log: [mission.intro]
   };
   resultEl.classList.add("hidden");
   missionDeskEl.classList.add("hidden");
   crewPanelEl.classList.remove("hidden");
   workshopPanelEl.classList.remove("hidden");
+  samplesPanelEl.classList.remove("hidden");
   controlsPanelEl.classList.remove("hidden");
   autoAssignCrew();
   render();
@@ -729,6 +809,97 @@ function calculateEquipmentEffects() {
   if (foodEq.level >= 2) effects.details.push(`冷库机组Lv${foodEq.level}，食物损耗-${foodEq.level - 1}`);
 
   return effects;
+}
+
+function produceSamples(labPower, labEfficiency, crewDataBoost) {
+  const result = { produced: [], totalValueGained: 0, details: [] };
+  const alloc = state.allocations;
+  sampleTypes.forEach((type) => {
+    const s = state.samples[type.id];
+    if (labPower < type.labPowerThreshold) return;
+    const baseChance = 0.25 + (labPower - type.labPowerThreshold) * 0.12;
+    const effMult = 0.8 + labEfficiency * 0.4;
+    const crewBonus = crewDataBoost > 0 ? 1.15 : 1.0;
+    const bonusMult = type.labPowerBonus !== undefined ? type.labPowerBonus : 1.0;
+    const chance = Math.min(0.95, baseChance * effMult * crewBonus * bonusMult);
+    const count = Math.random() < chance ? 1 : 0;
+    if (count > 0) {
+      const extra = Math.random() < (chance * 0.35) ? 1 : 0;
+      const total = count + extra;
+      s.count += total;
+      s.integrity = Math.min(100, s.integrity + 2);
+      s.totalProduced += total;
+      const val = total * type.value;
+      result.produced.push({ typeId: type.id, type, count: total, value: val });
+      result.totalValueGained += val;
+    }
+  });
+  return result;
+}
+
+function checkSamplePreservation(allocations, eqEffects) {
+  const result = { damaged: [], totalIntegrityLost: 0, totalValueLost: 0, details: [] };
+  sampleTypes.forEach((type) => {
+    const s = state.samples[type.id];
+    if (s.count <= 0) return;
+    const req = type.preserveReq;
+    let failedReqs = [];
+    let shortfallRatio = 0;
+    Object.keys(req).forEach((sysId) => {
+      const needed = req[sysId];
+      const have = allocations[sysId] || 0;
+      if (have < needed) {
+        failedReqs.push(sysId);
+        shortfallRatio += (needed - have) / needed;
+      }
+    });
+    if (failedReqs.length > 0) {
+      const baseLoss = type.lossWhenFail;
+      const weatherMult = state.weather.name === "暴风雪" ? 1.4 : state.weather.name === "低温" ? 1.2 : 1.0;
+      const lossPct = Math.min(85, baseLoss * shortfallRatio * weatherMult * (0.6 + Math.random() * 0.8));
+      const before = s.integrity;
+      s.integrity = Math.max(0, Math.round(s.integrity - lossPct));
+      const actualLoss = before - s.integrity;
+      let lostCount = 0;
+      if (s.integrity <= 25 && s.count > 0 && Math.random() < (1 - s.integrity / 100)) {
+        lostCount = Math.min(s.count, 1 + Math.floor((100 - s.integrity) / 40));
+      }
+      if (lostCount > 0) {
+        const lostVal = lostCount * type.value;
+        s.count -= lostCount;
+        s.totalLost += lostCount;
+        result.totalValueLost += lostVal;
+      }
+      result.damaged.push({
+        typeId: type.id,
+        type,
+        integrityLost: actualLoss,
+        lostCount,
+        lostValue: lostCount * type.value,
+        failedReqs
+      });
+      result.totalIntegrityLost += actualLoss;
+    } else if (s.integrity < 100) {
+      s.integrity = Math.min(100, s.integrity + 3);
+    }
+  });
+  return result;
+}
+
+function calculateSampleTotalValue() {
+  let total = 0;
+  let weightedIntegrity = 0;
+  let totalWeight = 0;
+  sampleTypes.forEach((type) => {
+    const s = state.samples[type.id];
+    const val = s.count * type.value;
+    const integrityFactor = s.integrity / 100;
+    total += val * integrityFactor;
+    weightedIntegrity += s.integrity * val;
+    totalWeight += val;
+  });
+  const avgIntegrity = totalWeight > 0 ? Math.round(weightedIntegrity / totalWeight) : 100;
+  return { totalValue: Math.round(total), avgIntegrity };
 }
 
 function degradeEquipment() {
@@ -844,6 +1015,11 @@ function endDay() {
   dataGain += crewEffects.dataBoost;
   state.data += dataGain;
 
+  state.sampleValueLostToday = {};
+  const sampleResult = produceSamples(state.allocations.lab, eqEffects.labEfficiency, crewEffects.dataBoost);
+  const sampleDamage = checkSamplePreservation(state.allocations, eqEffects);
+  state.sampleValueLostToday = sampleDamage;
+
   const durDegrades = degradeEquipment();
 
   updateCrewAfterDay();
@@ -875,6 +1051,29 @@ function endDay() {
   }
   if (durDegrades.length > 0) {
     settlementLines.push(`【设备损耗】${durDegrades.join('，')}`);
+  }
+
+  if (sampleResult.produced.length > 0) {
+    const parts = sampleResult.produced.map((p) => `${p.type.icon}${p.type.name}×${p.count}(+${p.value}分)`);
+    settlementLines.push(`【样本产出】${parts.join('，')}，总价值+${sampleResult.totalValueGained}`);
+  } else if (state.allocations.lab > 0) {
+    settlementLines.push(`【样本产出】今日实验室电力${state.allocations.lab}格，未产出合格样本（部分样本对实验室电力门槛有要求）`);
+  }
+  if (sampleDamage.damaged.length > 0) {
+    const dmgParts = sampleDamage.damaged.map((d) => {
+      const reqNames = d.failedReqs.map((r) => {
+        const map = { heat: '供暖', comm: '通信', lab: '实验', food: '冷藏' };
+        return map[r] || r;
+      }).join('+');
+      let desc = `${d.type.icon}${d.type.name}完整度-${d.integrityLost}`;
+      if (d.lostCount > 0) desc += `，损毁${d.lostCount}份(-${d.lostValue}分)`;
+      desc += `【${reqNames}不足】`;
+      return desc;
+    });
+    settlementLines.push(`【样本损坏】${dmgParts.join('，')}`);
+    if (sampleDamage.totalValueLost > 0) {
+      settlementLines.push(`【样本价值损失】总计-${sampleDamage.totalValueLost}分`);
+    }
   }
 
   settlementLines.forEach((line) => addLog(line));
@@ -1024,14 +1223,24 @@ function randomEvent() {
 function finish(success) {
   state.started = false;
   normalize();
+  const sampleStats = calculateSampleTotalValue();
+  const sampleValue = sampleStats.totalValue;
+  const sampleIntegrity = sampleStats.avgIntegrity;
   const score = Math.max(
     0,
-    state.data + state.fuel + state.food + state.morale
+    state.data + state.fuel + state.food + state.morale + sampleValue
   );
-  const summary = { score, data: state.data, mission: state.mission };
+  const summary = { score, data: state.data, mission: state.mission, sampleValue, sampleIntegrity };
   const resultText = success
     ? state.mission.successText(summary)
     : state.mission.failText(summary);
+  let sampleBreakdown = "";
+  sampleTypes.forEach((t) => {
+    const s = state.samples[t.id];
+    if (s.totalProduced > 0 || s.count > 0) {
+      sampleBreakdown += `${t.icon}${t.name}：现存${s.count}份(完整度${s.integrity}%)，共产出${s.totalProduced}份，损毁${s.totalLost}份；`;
+    }
+  });
   saveArchiveRecord({
     success: success,
     missionName: state.mission.name,
@@ -1040,6 +1249,8 @@ function finish(success) {
     food: state.food,
     morale: state.morale,
     data: state.data,
+    sampleValue: sampleValue,
+    sampleIntegrity: sampleIntegrity,
     score: score,
     ending: resultText
   });
@@ -1048,17 +1259,26 @@ function finish(success) {
         state.data >= state.mission.dataGoal ? "✅ 达成" : "❌ 未达成"
       }</p>`
     : "";
+  const sampleScoreLine = sampleValue > 0 || sampleBreakdown
+    ? `<p class="result-goal" style="background:rgba(143,169,174,0.25)">科研样本贡献分：+${sampleValue}（加权完整度${sampleIntegrity}%）</p>`
+    : "";
+  const sampleDetailLine = sampleBreakdown
+    ? `<p style="font-size:13px;line-height:1.7;color:#c5d7da;margin-top:8px">${sampleBreakdown}</p>`
+    : "";
   resultEl.innerHTML = `
     <h2>${success ? "任务结束" : "任务失败"}</h2>
     <p>${state.mission.name}</p>
     ${goalLine}
-    <p>柴油${state.fuel}，食物${state.food}，士气${state.morale}，数据${state.data}。</p>
+    ${sampleScoreLine}
+    <p>柴油${state.fuel}，食物${state.food}，士气${state.morale}，数据${state.data}，样本价值${sampleValue}。</p>
+    ${sampleDetailLine}
     <p>${resultText}</p>
     <button id="returnBtn" type="button">返回任务选择台</button>
   `;
   resultEl.classList.remove("hidden");
   crewPanelEl.classList.add("hidden");
   workshopPanelEl.classList.add("hidden");
+  samplesPanelEl.classList.add("hidden");
   controlsPanelEl.classList.add("hidden");
   document.getElementById("returnBtn").addEventListener("click", () => {
     state = freshState();
@@ -1066,6 +1286,7 @@ function finish(success) {
     missionDeskEl.classList.remove("hidden");
     crewPanelEl.classList.add("hidden");
     workshopPanelEl.classList.add("hidden");
+    samplesPanelEl.classList.add("hidden");
     controlsPanelEl.classList.add("hidden");
     renderMissionCards();
     startBtn.disabled = true;
@@ -1176,6 +1397,7 @@ function render() {
     renderCrewCards();
     renderCrewSummary();
     renderEquipmentWorkshop();
+    renderSamples();
   }
   renderAllocationValues();
   renderLog();
@@ -1221,6 +1443,67 @@ function getEquipmentEffectDesc(def, eq) {
     if (eq.durability >= 60 && eq.level < 2) parts.push("状态正常");
   }
   return parts.join("；");
+}
+
+function renderSamples() {
+  if (!state.samples) return;
+  sampleCardsEl.innerHTML = "";
+  const sampleStats = calculateSampleTotalValue();
+  sampleTotalValueEl.textContent = sampleStats.totalValue;
+  sampleIntegrityEl.textContent = sampleStats.avgIntegrity + "%";
+
+  sampleTypes.forEach((type) => {
+    const s = state.samples[type.id];
+    const reqNames = Object.keys(type.preserveReq).map((r) => {
+      const map = { heat: '供暖', comm: '通信', lab: '实验', food: '冷藏' };
+      return map[r] || r;
+    }).join("+");
+    const reqValues = Object.keys(type.preserveReq).map((r) => {
+      const alloc = state.allocations[r] || 0;
+      const needed = type.preserveReq[r];
+      const ok = alloc >= needed;
+      return `${ok ? "✅" : "⚠"}${mapReqName(r)}${alloc}/${needed}`;
+    }).join(" ");
+    const integrityColor = s.integrity >= 70 ? "#4f8a5b" : s.integrity >= 40 ? "#d18b3f" : "#d14c3f";
+    const integrityFillColor = s.integrity >= 70 ? "#4f8a5b" : s.integrity >= 40 ? "#f2c14e" : "#d14c3f";
+    const card = document.createElement("div");
+    card.className = `sample-card sample-${type.id}`;
+    card.innerHTML = `
+      <div class="sample-card-head">
+        <span class="sample-icon">${type.icon}</span>
+        <div class="sample-card-info">
+          <div class="sample-name">${type.name}</div>
+          <div class="sample-desc">${type.desc}</div>
+        </div>
+        <span class="sample-count">×${s.count}<small>份</small></span>
+      </div>
+      <div class="sample-value-bar-wrap">
+        <div class="sample-value-label"><span>完整度</span><strong style="color:${integrityColor}">${s.integrity}%</strong></div>
+        <div class="sample-value-bar"><div class="sample-value-fill" style="width:${s.integrity}%;background:${integrityFillColor}"></div></div>
+      </div>
+      <div class="sample-req">
+        <div class="sample-req-title">保存条件 <small>（需${reqNames}电力≥要求值）</small></div>
+        <div class="sample-req-values">${reqValues}</div>
+        <div class="sample-req-hint">${type.preserveHint}</div>
+      </div>
+      <div class="sample-stats-row">
+        <span>单份价值<strong>${type.value}</strong></span>
+        <span>实验门槛<strong>${type.labPowerThreshold}格</strong></span>
+        <span>现存价值<strong>${Math.round(s.count * type.value * s.integrity / 100)}</strong></span>
+      </div>
+      <div class="sample-stats-row" style="opacity:.75;font-size:11px">
+        <span>累计产出<strong>${s.totalProduced}</strong></span>
+        <span>累计损毁<strong>${s.totalLost}</strong></span>
+        <span>损毁惩罚<strong>-${type.lossWhenFail}%</strong></span>
+      </div>
+    `;
+    sampleCardsEl.appendChild(card);
+  });
+}
+
+function mapReqName(r) {
+  const map = { heat: '供暖', comm: '通信', lab: '实验', food: '冷藏' };
+  return map[r] || r;
 }
 
 function renderEquipmentWorkshop() {
@@ -1343,7 +1626,8 @@ function renderArchive() {
       </div>
       <div class="archive-card-stats">
         <span>数据<strong>${record.data}</strong></span>
-        <span style="grid-column: span 2;">评分<strong>${record.score}</strong></span>
+        <span>样本<strong>${record.sampleValue || 0}</strong></span>
+        <span>完整度<strong>${record.sampleIntegrity !== undefined ? record.sampleIntegrity + '%' : '—'}</strong></span>
       </div>
       <div class="archive-card-score">综合评分：${record.score}</div>
       <p class="archive-card-ending">${record.ending}</p>
