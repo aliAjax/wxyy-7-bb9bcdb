@@ -3600,9 +3600,10 @@ function updateCrewAfterDay() {
   const dayStatusEvents = [];
 
   state.crew.forEach((member) => {
-    member.previousStation = member.station;
+    const todayStation = member.station;
+    const yesterdayStation = member.previousStation;
 
-    if (member.station === "rest") {
+    if (todayStation === "rest") {
       member.fatigue = Math.max(0, member.fatigue - 35);
       const moodRecoveryMult = hasTempStatus(member, "shaken") ? tempStatusDefs.shaken.moodRecoveryMult : 1;
       member.mood = Math.min(100, member.mood + Math.round(8 * moodRecoveryMult));
@@ -3614,12 +3615,17 @@ function updateCrewAfterDay() {
         member.statusRestCounters[sid] = (member.statusRestCounters[sid] || 0) + 1;
         if (member.statusRestCounters[sid] >= def.clearRestDays) {
           removeTempStatus(member, sid);
-          dayStatusEvents.push(`${member.name} 恢复状态「${def.name}」解除`);
+          dayStatusEvents.push(`${member.name} 连续休息解除状态「${def.name}」`);
         }
       });
     } else {
+      Object.keys(member.statusRestCounters).forEach((sid) => {
+        member.statusRestCounters[sid] = 0;
+      });
+      member.statusRestCounters = {};
+
       let fatigueDelta = 15;
-      const isMatched = member.specialty === member.station;
+      const isMatched = member.specialty === todayStation;
       if (!isMatched) fatigueDelta += 5;
 
       if (member.consecutiveDays >= 2) fatigueDelta += 8;
@@ -3645,26 +3651,33 @@ function updateCrewAfterDay() {
 
       member.mood = Math.max(0, Math.min(100, member.mood + moodDelta));
 
-      if (member.previousStation === member.station) {
-        member.consecutiveDays++;
+      if (yesterdayStation === todayStation && todayStation && todayStation !== "rest") {
+        member.consecutiveDays = (member.consecutiveDays || 0) + 1;
       } else {
         member.consecutiveDays = 1;
       }
 
-      if (member.station && member.station !== "rest") {
-        const gainExp = isMatched ? 2 : 1;
-        const oldLevel = getSkillLevel(member, member.station);
-        member.skills[member.station] = (member.skills[member.station] || 0) + gainExp;
-        const newLevel = getSkillLevel(member, member.station);
-        member.skillLevels[member.station] = newLevel;
+      if (todayStation && todayStation !== "rest") {
+        let gainExp = isMatched ? 2 : 1;
+        if (member.consecutiveDays >= 5) gainExp += 2;
+        else if (member.consecutiveDays >= 3) gainExp += 1;
+
+        const oldLevel = getSkillLevel(member, todayStation);
+        member.skills[todayStation] = (member.skills[todayStation] || 0) + gainExp;
+        const newLevel = getSkillLevel(member, todayStation);
+        member.skillLevels[todayStation] = newLevel;
         if (newLevel > oldLevel) {
-          const stationName = stations.find((s) => s.id === member.station)?.name || member.station;
+          const stationName = stations.find((s) => s.id === todayStation)?.name || todayStation;
           const levelName = skillLevelConfig.names[newLevel];
-          dayGrowthEvents.push(`🌟 ${member.name} ${stationName}技能提升至「${levelName}」！`);
-          member._growthLog.push({ day: state.day, station: member.station, level: newLevel });
+          dayGrowthEvents.push(`🌟 ${member.name} ${stationName}技能提升至「${levelName}」！（连续${member.consecutiveDays}天）`);
+          member._growthLog.push({ day: state.day, station: todayStation, level: newLevel });
+        } else if (gainExp > 2) {
+          member._growthLog.push({ day: state.day, station: todayStation, level: newLevel, bonus: true, exp: gainExp });
         }
       }
     }
+
+    member.previousStation = todayStation;
 
     if (member.fatigue >= 80) {
       member._consecutiveHighFatigue = (member._consecutiveHighFatigue || 0) + 1;
@@ -3694,7 +3707,7 @@ function updateCrewAfterDay() {
       }
     });
 
-    member.station = member.station === "rest" ? null : null;
+    member.station = todayStation === "rest" ? null : null;
   });
 
   if (dayGrowthEvents.length > 0 || dayStatusEvents.length > 0) {
