@@ -4219,11 +4219,6 @@ function computeDayPreview() {
   dataGain += samplePreviewDataGain;
   let previewData = state.data + dataGain;
 
-  previewFuel = Math.max(0, Math.min(100, Math.round(previewFuel)));
-  previewFood = Math.max(0, Math.min(100, Math.round(previewFood)));
-  previewMorale = Math.max(0, Math.min(100, Math.round(previewMorale)));
-  previewData = Math.max(0, Math.round(previewData));
-
   const sampleDamagePreview = [];
   sampleTypes.forEach((type) => {
     const s = state.samples[type.id];
@@ -4304,10 +4299,22 @@ function computeDayPreview() {
       commPreview.progressAfter = state.commChain.phaseProgress + 1;
       if (commPreview.progressAfter >= curPhase.requiredDays) {
         commPreview.phaseCompleted = true;
+        if (curPhase.reward) {
+          commPreview.rewardApplied = { ...curPhase.reward };
+          if (curPhase.reward.fuel) previewFuel += curPhase.reward.fuel;
+          if (curPhase.reward.food) previewFood += curPhase.reward.food;
+          if (curPhase.reward.morale) previewMorale += curPhase.reward.morale;
+          if (curPhase.reward.data) previewData += curPhase.reward.data;
+        }
       }
     }
     commPreview.requiredDays = curPhase.requiredDays;
   }
+
+  previewFuel = Math.max(0, Math.min(100, Math.round(previewFuel)));
+  previewFood = Math.max(0, Math.min(100, Math.round(previewFood)));
+  previewMorale = Math.max(0, Math.min(100, Math.round(previewMorale)));
+  previewData = Math.max(0, Math.round(previewData));
 
   const warnings = [];
   if (previewFuel <= 0) warnings.push({ level: "critical", text: "柴油可能归零，任务将直接失败！" });
@@ -4469,7 +4476,14 @@ function renderDayPreview() {
   } else if (cp.phaseName) {
     if (cp.advanced) {
       if (cp.phaseCompleted) {
-        commHtml = `<span class="preview-comm-chip chip-good">📡「${cp.phaseName}」阶段完成！进度 ${cp.progressAfter}/${cp.requiredDays}</span>`;
+        const rewards = [];
+        if (cp.rewardApplied) {
+          if (cp.rewardApplied.fuel) rewards.push(`柴油+${cp.rewardApplied.fuel}`);
+          if (cp.rewardApplied.food) rewards.push(`食物+${cp.rewardApplied.food}`);
+          if (cp.rewardApplied.morale) rewards.push(`士气+${cp.rewardApplied.morale}`);
+          if (cp.rewardApplied.data) rewards.push(`科研成果+${cp.rewardApplied.data}`);
+        }
+        commHtml = `<span class="preview-comm-chip chip-good">📡「${cp.phaseName}」阶段完成！进度 ${cp.progressAfter}/${cp.requiredDays}${rewards.length ? `，奖励：${rewards.join("、")}` : ""}</span>`;
       } else {
         commHtml = `<span class="preview-comm-chip chip-ok">📡「${cp.phaseName}」推进中 ${cp.progressAfter}/${cp.requiredDays}</span>`;
       }
