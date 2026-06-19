@@ -1233,6 +1233,19 @@ function initFilterEvents() {
   resetFilterBtn.addEventListener("click", resetFilters);
 }
 
+function syncSelectionWithVisibleMissions() {
+  if (state.started || !state.selectedMissionId) return;
+
+  const selectedCard = missionCardsEl.querySelector(
+    `.mission-card[data-mission-id="${state.selectedMissionId}"]`
+  );
+  if (selectedCard) return;
+
+  state.selectedMissionId = null;
+  startBtn.disabled = true;
+  startBtn.textContent = "确认任务并进入电力分配";
+}
+
 function renderMissionCards() {
   missionCardsEl.innerHTML = "";
 
@@ -1351,6 +1364,8 @@ function renderMissionCards() {
     missionCardsEl.classList.add("hidden");
     missionEmptyEl.classList.remove("hidden");
   }
+
+  syncSelectionWithVisibleMissions();
 }
 
 function selectMission(missionId) {
