@@ -33,8 +33,13 @@ const archiveDetailFood = document.getElementById("archiveDetailFood");
 const archiveDetailMorale = document.getElementById("archiveDetailMorale");
 const archiveDetailData = document.getElementById("archiveDetailData");
 const archiveDetailSampleValue = document.getElementById("archiveDetailSampleValue");
+const archiveDetailSampleDiscovered = document.getElementById("archiveDetailSampleDiscovered");
+const archiveDetailSampleReturned = document.getElementById("archiveDetailSampleReturned");
 const archiveDetailSampleIntegrity = document.getElementById("archiveDetailSampleIntegrity");
 const archiveDetailComm = document.getElementById("archiveDetailComm");
+const archiveDetailReturnSection = document.getElementById("archiveDetailReturnSection");
+const archiveDetailReturnSummary = document.getElementById("archiveDetailReturnSummary");
+const archiveDetailReturnDetails = document.getElementById("archiveDetailReturnDetails");
 const archiveDetailScore = document.getElementById("archiveDetailScore");
 const archiveDetailEnding = document.getElementById("archiveDetailEnding");
 const archiveDetailCrew = document.getElementById("archiveDetailCrew");
@@ -75,6 +80,7 @@ const samplesPanelEl = document.getElementById("samplesPanel");
 const sampleCardsEl = document.getElementById("sampleCards");
 const sampleIntegrityEl = document.getElementById("sampleIntegrity");
 const sampleTotalValueEl = document.getElementById("sampleTotalValue");
+const sampleDiscoveredValueEl = document.getElementById("sampleDiscoveredValue");
 
 const commPanelEl = document.getElementById("commPanel");
 const commChainSelectorEl = document.getElementById("commChainSelector");
@@ -211,10 +217,10 @@ function hideAllOverlays() {
 }
 
 const systems = [
-  { id: "heat", name: "供暖", hint: "低于要求会冻伤士气，保障天文观测样本" },
-  { id: "comm", name: "通信", hint: "保持求援和天气联系，保障气溶胶样本" },
-  { id: "lab", name: "实验", hint: "产出各类科研样本（样本价值等价计入数据）" },
-  { id: "food", name: "食物储藏", hint: "低于2会损耗食物，保障冰芯/生物样本冷藏" }
+  { id: "heat", name: "供暖", hint: "低于要求会冻伤士气，保障天文样本恒温，提升返运成功率" },
+  { id: "comm", name: "通信", hint: "保持天气/定位链路，保障气溶胶样本，<b>提升返运成功率+运力</b>" },
+  { id: "lab", name: "实验", hint: "产出各类科研样本（<b>样本仅成功返运才计入成果</b>）" },
+  { id: "food", name: "食物储藏", hint: "低于2会损耗食物，保障冰芯/生物冷藏，<b>提升返运运力+成功率</b>" }
 ];
 
 const equipmentDefs = [
@@ -222,6 +228,13 @@ const equipmentDefs = [
   { id: "comm", name: "通信天线", icon: "📡", baseDurLoss: 5, repairFuel: 5, upgradeFuel: 10, upgradeData: 12, maxLevel: 3 },
   { id: "lab", name: "实验仪器", icon: "🔬", baseDurLoss: 4, repairFuel: 6, upgradeFuel: 8, upgradeData: 15, maxLevel: 3 },
   { id: "food", name: "冷库机组", icon: "🧊", baseDurLoss: 5, repairFuel: 5, upgradeFuel: 10, upgradeData: 8, maxLevel: 3 }
+];
+
+const returnPriorityLevels = [
+  { id: "critical", name: "最高优先级", label: "★★★", weight: 3, color: "#d14c3f", hint: "占用更多返运力，优先保障" },
+  { id: "high", name: "高优先级", label: "★★", weight: 2, color: "#d18b3f", hint: "重点保护，尽量带回" },
+  { id: "normal", name: "普通优先级", label: "★", weight: 1, color: "#8fa9ae", hint: "常规处理，视运力而定" },
+  { id: "low", name: "低优先级", label: "—", weight: 0.5, color: "#5c6b70", hint: "可放弃，优先让位给高价值样本" }
 ];
 
 const sampleTypes = [
@@ -236,7 +249,10 @@ const sampleTypes = [
     preserveHint: "需食物储藏电力≥4维持低温冷藏",
     lossWhenFail: 28,
     labPowerThreshold: 3,
-    labPowerBonus: 1.6
+    labPowerBonus: 1.6,
+    weight: 4,
+    baseRisk: 0.15,
+    riskHint: "笨重易碎，极端天气下高损毁风险"
   },
   {
     id: "aerosol",
@@ -249,7 +265,10 @@ const sampleTypes = [
     preserveHint: "需通信电力≥3保持数据链路在线",
     lossWhenFail: 22,
     labPowerThreshold: 2,
-    labPowerBonus: 1.3
+    labPowerBonus: 1.3,
+    weight: 1,
+    baseRisk: 0.08,
+    riskHint: "轻便稳定，样本封装良好风险较低"
   },
   {
     id: "astronomy",
@@ -262,7 +281,10 @@ const sampleTypes = [
     preserveHint: "需供暖电力≥3维持观测舱恒温",
     lossWhenFail: 25,
     labPowerThreshold: 4,
-    labPowerBonus: 1.8
+    labPowerBonus: 1.8,
+    weight: 2,
+    baseRisk: 0.10,
+    riskHint: "数据介质敏感，温度骤变有损坏风险"
   },
   {
     id: "biotrace",
@@ -275,7 +297,10 @@ const sampleTypes = [
     preserveHint: "需冷藏+恒温+监控三重保障",
     lossWhenFail: 35,
     labPowerThreshold: 5,
-    labPowerBonus: 2.2
+    labPowerBonus: 2.2,
+    weight: 3,
+    baseRisk: 0.18,
+    riskHint: "高价值但极度脆弱，多重条件保障失败极易失活"
   }
 ];
 
@@ -396,7 +421,7 @@ const missions = [
     id: "standard",
     name: "常规7天值班",
     tag: "默认",
-    desc: "标准值守任务，维持科考站日常运转，撑过7天等待换班。实验电力分配将产出各类科研样本，样本价值计入最终成果。",
+    desc: "标准值守任务，维持科考站日常运转，撑过7天等待换班。实验电力分配产出各类科研样本，<b>仅成功返运的样本才计入最终科研成果</b>。",
     color: "#29464d",
     days: 7,
     initial: { fuel: 80, morale: 75, food: 70, data: 0 },
@@ -405,17 +430,22 @@ const missions = [
     dataPerLab: 0,
     defaultCommChain: "supply_relay",
     weatherWeight: null,
-    intro: "值班开始，目标是撑过7天并尽量产出高价值科研样本。实验电力用于产出样本，样本价值等价计入数据总量。",
-    successText: (s) =>
-      `科考站撑过了7天，直升机抵达，样本和数据都被带回基地。科研成果（数据+样本价值）：${s.data}，最终评分：${s.score}。`,
-    failText: (s) =>
-      `值班失败，某项关键资源归零，任务提前中止。仅获得科研成果 ${s.data}，最终评分：${s.score}。`
+    intro: "值班开始，目标是撑过7天并尽量产出高价值科研样本。实验电力用于产出样本，<b>样本需成功返运才能计入最终科研成果</b>。通信+冷藏+恒温+最终资源决定返运成功率，请在样本面板设置返运优先级。",
+    successText: (s) => {
+      const ret = s.returnedValue !== undefined ? s.returnedValue : s.sampleValue;
+      const disc = s.discoveredValue !== undefined ? s.discoveredValue : s.sampleValue;
+      return `科考站撑过了7天，直升机抵达！现场发现样本价值${disc}，经过精心打包和恶劣天气的考验，成功返运样本价值<b>${ret}</b>。科研成果（数据+返运样本）：${s.data}，最终评分：${s.score}。`;
+    },
+    failText: (s) => {
+      const disc = s.discoveredValue !== undefined ? s.discoveredValue : s.sampleValue;
+      return `值班失败，某项关键资源归零，任务提前中止。现场发现样本价值${disc}，但未及组织返运全部遗失。仅获得数据 ${s.data}，最终评分：${s.score}。`;
+    }
   },
   {
     id: "weather",
     name: "气象观测专项",
     tag: "通信优先",
-    desc: "连续记录极地气象数据，需要通信系统持续在线传输实时报文，并采集大气气溶胶样本。通信在线额外奖励数据。",
+    desc: "连续记录极地气象数据，需要通信系统持续在线传输实时报文，并采集大气气溶胶样本。<b>通信在线额外奖励数据，且大幅提升样本返运成功率</b>。",
     color: "#357a90",
     days: 7,
     initial: { fuel: 70, morale: 70, food: 65, data: 0 },
@@ -424,19 +454,25 @@ const missions = [
     dataPerLab: 0,
     commBonus: 3,
     defaultCommChain: "research_data",
-    intro: "气象观测任务启动，保持通信畅通以获得额外观测数据，并分配足够电力产出气溶胶样本。目标科研成果≥180。",
-    successText: (s) =>
-      s.data >= s.mission.dataGoal
-        ? `气象观测圆满完成！科研成果 ${s.data}（含大量气溶胶样本），数据质量优秀。最终评分：${s.score}。`
-        : `撑过了7天，但科研成果仅 ${s.data}（目标≥${s.mission.dataGoal}），观测报告不够完整。最终评分：${s.score}。`,
-    failText: (s) =>
-      `气象任务中断，某项资源归零。仅获得科研成果 ${s.data}。最终评分：${s.score}。`
+    intro: "气象观测任务启动，保持通信畅通以获得额外观测数据，并分配足够电力产出气溶胶样本。<b>气溶胶样本轻便稳定、返运风险低，优先设为高优先级</b>。目标科研成果（数据+返运样本）≥180。",
+    successText: (s) => {
+      const ret = s.returnedValue !== undefined ? s.returnedValue : s.sampleValue;
+      const disc = s.discoveredValue !== undefined ? s.discoveredValue : s.sampleValue;
+      const finalResearch = (s.data || 0) + ret;
+      return finalResearch >= s.mission.dataGoal
+        ? `气象观测圆满完成！现场发现${disc}，返运${ret}，最终科研成果 ${finalResearch}。通信全程在线，气溶胶样本定位精准返运顺利，数据质量优秀。最终评分：${s.score}。`
+        : `撑过了7天，现场发现${disc}，返运${ret}，最终科研成果 ${finalResearch}（目标≥${s.mission.dataGoal}）。观测报告不够完整，部分样本因通信短暂中断定位失败。最终评分：${s.score}。`;
+    },
+    failText: (s) => {
+      const disc = s.discoveredValue !== undefined ? s.discoveredValue : s.sampleValue;
+      return `气象任务中断，某项资源归零。现场发现样本价值${disc}，未及返运全部遗失。仅获得数据 ${s.data}。最终评分：${s.score}。`;
+    }
   },
   {
     id: "icecore",
     name: "冰芯采样远征",
     tag: "实验优先",
-    desc: "钻探深层冰芯并在实验舱内分析，实验室电力越高，越有机会产出高价值冰芯样本。冰芯样本需要充足冷藏电力保存。",
+    desc: "钻探深层冰芯并在实验舱内分析，实验室电力越高越有机会产出高价值冰芯样本。<b>冰芯笨重易碎，返运需充足冷藏和运力资源</b>。",
     color: "#6267a6",
     days: 7,
     initial: { fuel: 85, morale: 80, food: 60, data: 0 },
@@ -445,19 +481,25 @@ const missions = [
     dataPerLab: 0,
     defaultCommChain: "research_data",
     weatherWeight: { 暴风雪: 3, 晴朗: 1, 低温: 2, 极夜静风: 2 },
-    intro: "冰芯采样任务启动，分配更多电力给实验舱以获取高质量冰芯样本，并确保冷藏电力充足防止样本融化。目标科研成果≥220。",
-    successText: (s) =>
-      s.data >= s.mission.dataGoal
-        ? `冰芯采样大获成功！科研成果 ${s.data}，大量高价值冰芯样本被完整封装，发现远古气候信号。最终评分：${s.score}。`
-        : `顺利返程，但科研成果仅 ${s.data}（目标≥${s.mission.dataGoal}），冰芯样本价值有限。最终评分：${s.score}。`,
-    failText: (s) =>
-      `冰芯远征被迫中止，资源耗尽。仅保留了科研成果 ${s.data}。最终评分：${s.score}。`
+    intro: "冰芯采样任务启动，分配更多电力给实验舱以获取高质量冰芯样本，并确保冷藏电力充足防止样本融化。<b>冰芯每份重4单位，必须设为高优先级才能保证返运运力</b>。目标科研成果（数据+返运样本）≥220。",
+    successText: (s) => {
+      const ret = s.returnedValue !== undefined ? s.returnedValue : s.sampleValue;
+      const disc = s.discoveredValue !== undefined ? s.discoveredValue : s.sampleValue;
+      const finalResearch = (s.data || 0) + ret;
+      return finalResearch >= s.mission.dataGoal
+        ? `冰芯采样大获成功！现场发现${disc}，成功返运${ret}，最终科研成果 ${finalResearch}。大量高价值冰芯样本被完整封装，发现远古气候信号。最终评分：${s.score}。`
+        : `顺利返程，但现场发现${disc}仅返运${ret}，最终科研成果 ${finalResearch}（目标≥${s.mission.dataGoal}）。暴风雪天气下冰芯笨重易碎，部分样本运力不足被遗留。最终评分：${s.score}。`;
+    },
+    failText: (s) => {
+      const disc = s.discoveredValue !== undefined ? s.discoveredValue : s.sampleValue;
+      return `冰芯远征被迫中止，资源耗尽。现场发现${disc}未及返运全部遗失。仅保留了数据 ${s.data}。最终评分：${s.score}。`;
+    }
   },
   {
     id: "relay",
     name: "通信中继保障",
     tag: "士气优先",
-    desc: "作为跨极区通信中继节点，稳定的信号能提振全体队员士气。通信在线可阻止士气下降，同时兼顾样本采集。",
+    desc: "作为跨极区通信中继节点，稳定信号提振士气。<b>高士气可增加返运运力，通信在线同时提升返运成功率</b>。",
     color: "#c85f46",
     days: 7,
     initial: { fuel: 75, morale: 85, food: 80, data: 0 },
@@ -467,13 +509,19 @@ const missions = [
     commMoraleBonus: true,
     foodReserve: true,
     defaultCommChain: "supply_relay",
-    intro: "通信中继任务启动，维持通信在线可阻止士气下降，甚至提振人心。兼顾样本产出，目标科研成果≥130。",
-    successText: (s) =>
-      s.data >= s.mission.dataGoal
-        ? `跨极区通信中继全程在线！科研成果 ${s.data} 成功转发，队员状态极佳，样本保存完好。最终评分：${s.score}。`
-        : `中继站撑过了7天，但科研成果 ${s.data} 未达目标（≥${s.mission.dataGoal}），部分样本和信号丢失。最终评分：${s.score}。`,
-    failText: (s) =>
-      `通信中继站失守，中继任务失败。仅获得科研成果 ${s.data}。最终评分：${s.score}。`
+    intro: "通信中继任务启动，维持通信在线可阻止士气下降甚至提振人心。<b>高士气带来更多返运运力，建议将生物痕迹等脆弱样本设为最高优先级</b>。兼顾样本产出，目标科研成果（数据+返运样本）≥130。",
+    successText: (s) => {
+      const ret = s.returnedValue !== undefined ? s.returnedValue : s.sampleValue;
+      const disc = s.discoveredValue !== undefined ? s.discoveredValue : s.sampleValue;
+      const finalResearch = (s.data || 0) + ret;
+      return finalResearch >= s.mission.dataGoal
+        ? `跨极区通信中继全程在线！现场发现${disc}，成功返运${ret}，最终科研成果 ${finalResearch}。队员状态极佳士气高昂，返运运力充足，样本保存完好。最终评分：${s.score}。`
+        : `中继站撑过了7天，现场发现${disc}仅返运${ret}，最终科研成果 ${finalResearch}（目标≥${s.mission.dataGoal}）。部分样本和信号因暴风雪丢失。最终评分：${s.score}。`;
+    },
+    failText: (s) => {
+      const disc = s.discoveredValue !== undefined ? s.discoveredValue : s.sampleValue;
+      return `通信中继站失守，中继任务失败。现场发现${disc}未及返运全部遗失。仅获得数据 ${s.data}。最终评分：${s.score}。`;
+    }
   }
 ];
 
@@ -999,7 +1047,7 @@ const tutorialSteps = [
   },
   {
     title: "第三步：结束今天，观察资源变化",
-    desc: "点击「结束今天」后，系统按你分配的电力结算：\n• 未满足供暖/通信最低要求 → 扣士气+损坏样本\n• 电力总和 + 天气附加 → 消耗柴油\n• 食物储藏电力不足 → 食物加速损耗+冰芯样本融化\n• 实验室电力 → 产出科研样本（价值等价计入数据）\n• 通信在线 → 获得额外观测数据\n\n然后进入下一天，直到任务结束或某项资源归零失败。",
+    desc: "点击「结束今天」后，系统按你分配的电力结算：\n• 未满足供暖/通信最低要求 → 扣士气+损坏样本完整度\n• 电力总和 + 天气附加 → 消耗柴油\n• 食物储藏电力不足 → 食物加速损耗+冰芯样本融化\n• 实验室电力 → 产出科研样本（现场发现价值累计）\n• 通信在线 → 获得额外观测数据，提升样本返运成功率\n• 即使保存达标，样本也会缓慢自然损耗（完整度衰减）\n\n【重要】样本需在任务结束时成功<b>返运</b>才计入最终科研成果！通信/冷藏/恒温/最终资源+天气+优先级共同决定返运成功率。\n\n直到任务结束（任务通关可返运）或某项资源归零失败（失败则无返运）。",
     targetSelector: ".dashboard",
     cardPosition: "below",
     showSystems: false
@@ -1297,7 +1345,12 @@ function createInitialSamples() {
       count: 0,
       integrity: 100,
       totalProduced: 0,
-      totalLost: 0
+      totalLost: 0,
+      priority: "normal",
+      returnAttempted: 0,
+      returnSucceeded: 0,
+      returnFailed: 0,
+      returnedIntegrity: 0
     };
   });
   return samples;
@@ -2135,7 +2188,13 @@ function checkSamplePreservation(allocations, eqEffects) {
       });
       result.totalIntegrityLost += actualLoss;
     } else if (s.integrity < 100) {
-      s.integrity = Math.min(100, s.integrity + 3);
+      s.integrity = Math.min(100, s.integrity + 1);
+    }
+    if (s.count > 0) {
+      const dailyDecay = Math.random() < 0.3 ? Math.random() * 1.5 : 0;
+      if (dailyDecay > 0 && s.integrity > 30) {
+        s.integrity = Math.max(30, Math.round(s.integrity - dailyDecay));
+      }
     }
   });
   return result;
@@ -2145,16 +2204,191 @@ function calculateSampleTotalValue() {
   let total = 0;
   let weightedIntegrity = 0;
   let totalWeight = 0;
+  let totalDiscoveredValue = 0;
+  let detailByType = {};
   sampleTypes.forEach((type) => {
     const s = state.samples[type.id];
     const val = s.count * type.value;
     const integrityFactor = s.integrity / 100;
-    total += val * integrityFactor;
+    const discoveredVal = s.totalProduced * type.value;
+    const currentVal = val * integrityFactor;
+    total += currentVal;
+    totalDiscoveredValue += discoveredVal;
     weightedIntegrity += s.integrity * val;
     totalWeight += val;
+    detailByType[type.id] = {
+      typeId: type.id,
+      type,
+      count: s.count,
+      integrity: s.integrity,
+      currentValue: Math.round(currentVal),
+      discoveredValue: discoveredVal,
+      priority: s.priority,
+      weight: type.weight
+    };
   });
   const avgIntegrity = totalWeight > 0 ? Math.round(weightedIntegrity / totalWeight) : 100;
-  return { totalValue: Math.round(total), avgIntegrity };
+  return {
+    totalValue: Math.round(total),
+    avgIntegrity,
+    discoveredValue: totalDiscoveredValue,
+    detailByType
+  };
+}
+
+function getPriorityConfig(priorityId) {
+  return returnPriorityLevels.find((p) => p.id === priorityId) || returnPriorityLevels[2];
+}
+
+function performReturnSettlement(allocations, weather, finalResources) {
+  const result = {
+    succeeded: [],
+    failed: [],
+    totalAttempted: 0,
+    totalSucceeded: 0,
+    totalFailed: 0,
+    returnedValue: 0,
+    discoveredValue: 0,
+    capacityUsed: 0,
+    capacityTotal: 0,
+    conditions: {},
+    logs: []
+  };
+
+  const commPower = allocations.comm || 0;
+  const foodPower = allocations.food || 0;
+  const heatPower = allocations.heat || 0;
+  const { fuel, food, morale } = finalResources;
+
+  const weatherMultMap = { "晴朗": 1.0, "低温": 0.85, "暴风雪": 0.55, "极夜静风": 0.95 };
+  const weatherMult = weatherMultMap[weather.name] || 1.0;
+
+  const baseCapacity = 10;
+  const commBonus = commPower >= 4 ? 4 : commPower >= 3 ? 2 : commPower >= 2 ? 1 : 0;
+  const foodBonus = foodPower >= 4 ? 3 : foodPower >= 3 ? 1 : 0;
+  const moraleBonus = morale >= 70 ? 2 : morale >= 50 ? 1 : 0;
+  const capacity = Math.max(4, baseCapacity + commBonus + foodBonus + moraleBonus);
+  result.capacityTotal = capacity;
+
+  const commSuccessRate = Math.min(0.95, 0.4 + commPower * 0.12);
+  const foodPreserveRate = Math.min(0.95, 0.5 + foodPower * 0.10);
+  const heatStableRate = Math.min(0.95, 0.5 + heatPower * 0.10);
+  const resourceRate = Math.min(1.0, (fuel >= 20 ? 1.0 : fuel / 20) * 0.3 + (food >= 20 ? 1.0 : food / 20) * 0.3 + (morale >= 40 ? 1.0 : morale / 40) * 0.4);
+
+  result.conditions = {
+    weather: { name: weather.name, multiplier: weatherMult },
+    comm: { power: commPower, rate: commSuccessRate },
+    food: { power: foodPower, rate: foodPreserveRate },
+    heat: { power: heatPower, rate: heatStableRate },
+    resources: { fuel, food, morale, rate: resourceRate },
+    capacity
+  };
+
+  result.logs.push(`返运运力：基础${baseCapacity} + 通信+${commBonus} + 冷藏+${foodBonus} + 士气+${moraleBonus} = 总${capacity}单位`);
+  result.logs.push(`环境系数：天气${weather.name}×${weatherMult.toFixed(2)}，通信成功率${Math.round(commSuccessRate*100)}%，冷藏保障${Math.round(foodPreserveRate*100)}%，恒温保障${Math.round(heatStableRate*100)}%，综合资源${Math.round(resourceRate*100)}%`);
+
+  const priorityOrder = { critical: 0, high: 1, normal: 2, low: 3 };
+  const allItems = [];
+
+  sampleTypes.forEach((type) => {
+    const s = state.samples[type.id];
+    const discoveredVal = s.totalProduced * type.value;
+    result.discoveredValue += discoveredVal;
+
+    for (let i = 0; i < s.count; i++) {
+      allItems.push({
+        typeId: type.id,
+        type,
+        index: i,
+        priority: s.priority,
+        priorityRank: priorityOrder[s.priority] || 2,
+        priorityWeight: getPriorityConfig(s.priority).weight,
+        sampleWeight: type.weight,
+        integrity: s.integrity,
+        baseRisk: type.baseRisk
+      });
+    }
+  });
+
+  allItems.sort((a, b) => {
+    if (a.priorityRank !== b.priorityRank) return a.priorityRank - b.priorityRank;
+    const va = a.type.value * (a.integrity / 100);
+    const vb = b.type.value * (b.integrity / 100);
+    return vb - va;
+  });
+
+  result.totalAttempted = allItems.length;
+
+  const acceptedByType = {};
+  allItems.forEach((item) => {
+    const effectiveWeight = item.sampleWeight * item.priorityWeight;
+    if (result.capacityUsed + effectiveWeight > capacity) {
+      result.failed.push({
+        ...item,
+        reason: "capacity",
+        reasonText: "运力不足，样本被遗留在科考站"
+      });
+      return;
+    }
+
+    const finalSuccessRate = Math.max(0.05,
+      weatherMult * commSuccessRate * foodPreserveRate * heatStableRate * resourceRate * (1 - item.baseRisk)
+    );
+    const priorityBoost = { critical: 0.20, high: 0.10, normal: 0.00, low: -0.10 }[item.priority] || 0;
+    const actualRate = Math.min(0.99, finalSuccessRate + priorityBoost);
+
+    const roll = Math.random();
+    if (roll < actualRate) {
+      result.capacityUsed += effectiveWeight;
+      result.totalSucceeded++;
+      const finalIntegrity = Math.max(5, Math.round(item.integrity * (0.75 + Math.random() * 0.25)));
+      const val = Math.round(item.type.value * finalIntegrity / 100);
+      result.returnedValue += val;
+      if (!acceptedByType[item.typeId]) acceptedByType[item.typeId] = [];
+      acceptedByType[item.typeId].push(finalIntegrity);
+      result.succeeded.push({
+        ...item,
+        finalIntegrity,
+        value: val
+      });
+    } else {
+      result.totalFailed++;
+      const reasons = [];
+      if (weatherMult < 0.7) reasons.push("恶劣天气");
+      if (commSuccessRate < 0.7) reasons.push("通信不畅定位失败");
+      if (foodPreserveRate < 0.7) reasons.push("冷藏中断样本失活");
+      if (heatStableRate < 0.7) reasons.push("温度失控样本损坏");
+      if (resourceRate < 0.6) reasons.push("队员状态不佳操作失误");
+      if (item.baseRisk > 0.12) reasons.push("样本本身高风险");
+      result.failed.push({
+        ...item,
+        reason: "failed",
+        reasonText: reasons.length > 0 ? reasons.join("、") : "运输途中意外损坏"
+      });
+    }
+  });
+
+  sampleTypes.forEach((type) => {
+    const s = state.samples[type.id];
+    const accepted = acceptedByType[type.id] || [];
+    s.returnAttempted = allItems.filter((it) => it.typeId === type.id).length;
+    s.returnSucceeded = accepted.length;
+    s.returnFailed = s.returnAttempted - accepted.length;
+    if (accepted.length > 0) {
+      s.returnedIntegrity = Math.round(accepted.reduce((a, b) => a + b, 0) / accepted.length);
+    } else {
+      s.returnedIntegrity = 0;
+    }
+  });
+
+  if (result.totalSucceeded > 0) {
+    const avgInt = result.succeeded.reduce((a, b) => a + b.finalIntegrity, 0) / result.succeeded.length;
+    result.logs.push(`成功带回 ${result.totalSucceeded}/${result.totalAttempted} 份样本，平均完整度 ${Math.round(avgInt)}%，返运价值 ${result.returnedValue}`);
+  } else if (result.totalAttempted > 0) {
+    result.logs.push(`全部 ${result.totalAttempted} 份样本未能成功返运`);
+  }
+
+  return result;
 }
 
 function degradeEquipment() {
@@ -2582,6 +2816,31 @@ function finishCampaignChapter(success) {
   dayPreviewPanelEl.classList.add("hidden");
 
   const sampleStats = calculateSampleTotalValue();
+  const discoveredValue = sampleStats.discoveredValue;
+
+  const returnSettlement = success
+    ? performReturnSettlement(
+        state.allocations,
+        state.weather,
+        { fuel: state.fuel, food: state.food, morale: state.morale }
+      )
+    : {
+        succeeded: [],
+        failed: [],
+        totalAttempted: 0,
+        totalSucceeded: 0,
+        totalFailed: 0,
+        returnedValue: 0,
+        discoveredValue: discoveredValue,
+        capacityUsed: 0,
+        capacityTotal: 0,
+        conditions: {},
+        logs: success ? [] : ["任务失败，未组织返运，所有样本遗失"]
+      };
+
+  const returnedValue = returnSettlement.returnedValue;
+  const finalResearchValue = state.data + returnedValue;
+  const finalScore = Math.max(0, finalResearchValue + state.fuel + state.food + state.morale);
 
   const chainsComplete = {};
   Object.keys(state.commChains).forEach((cid) => {
@@ -2598,7 +2857,11 @@ function finishCampaignChapter(success) {
     food: state.food,
     data: state.data,
     sampleValue: sampleStats.totalValue,
+    sampleDiscoveredValue: discoveredValue,
+    sampleReturnedValue: returnedValue,
     sampleIntegrity: sampleStats.avgIntegrity,
+    returnSettlement: JSON.parse(JSON.stringify(returnSettlement)),
+    finalResearchValue,
     crew: JSON.parse(JSON.stringify(state.crew)),
     equipment: JSON.parse(JSON.stringify(state.equipment)),
     samples: JSON.parse(JSON.stringify(state.samples)),
@@ -2621,6 +2884,12 @@ function finishCampaignChapter(success) {
       const targetId = obj.id.replace("commChain_", "");
       val = state.commChains[targetId] && state.commChains[targetId].isComplete ? 1 : 0;
       passed = val >= obj.min;
+    } else if (obj.id === "returnedData") {
+      val = finalResearchValue;
+      passed = val >= obj.min;
+    } else if (obj.id === "data") {
+      val = finalResearchValue;
+      passed = val >= obj.min;
     } else {
       val = state[obj.id] || 0;
       passed = val >= obj.min;
@@ -2640,16 +2909,19 @@ function finishCampaignChapter(success) {
     morale: state.morale,
     data: state.data,
     sampleValue: sampleStats.totalValue,
+    sampleDiscoveredValue: discoveredValue,
+    sampleReturnedValue: returnedValue,
+    returnSettlement: JSON.parse(JSON.stringify(returnSettlement)),
     sampleIntegrity: sampleStats.avgIntegrity,
     commComplete: anyChainComplete,
     commChainsComplete: chainsComplete,
-    score: Math.max(0, state.data + state.fuel + state.food + state.morale),
-    ending: success ? "章节通过" : "章节失败",
+    score: finalScore,
+    ending: success ? `章节通过（返运${returnedValue}，科研成果${finalResearchValue}）` : `章节失败（发现${discoveredValue}，未能返运）`,
     crew: JSON.parse(JSON.stringify(state.crew))
   });
 
   if (campaignState.chapterIndex >= campaignChapters.length - 1) {
-    showCampaignEnding(success, allObjectivesMet);
+    showCampaignEnding(success, allObjectivesMet, outcome);
   } else {
     showChapterSettlement(chapter, success, allObjectivesMet, objResults, outcome);
   }
@@ -2661,12 +2933,15 @@ function showChapterSettlement(chapter, success, allObjectivesMet, objResults, o
   const summaryEl = chapterSettleSummary;
   summaryEl.innerHTML = "";
 
+  const finalResearch = (outcome.data || 0) + (outcome.sampleReturnedValue || 0);
   const stats = [
     { label: "柴油", val: outcome.fuel },
     { label: "士气", val: outcome.morale },
     { label: "食物", val: outcome.food },
     { label: "科研数据", val: outcome.data },
-    { label: "样本价值", val: outcome.sampleValue }
+    { label: "现场发现价值", val: `<span style="color:#8fa9ae">${outcome.sampleDiscoveredValue || outcome.sampleValue || 0}</span>` },
+    { label: "成功返运价值", val: `<span style="color:#f2c14e">${outcome.sampleReturnedValue || 0}</span>` },
+    { label: "最终科研成果", val: `<b>${finalResearch}</b>` }
   ];
   if (outcome.commChainsComplete) {
     Object.keys(outcome.commChainsComplete).forEach((cid) => {
@@ -2728,13 +3003,19 @@ function showChapterSettlement(chapter, success, allObjectivesMet, objResults, o
   chapterSettleOverlay.classList.remove("hidden");
 }
 
-function showCampaignEnding(lastChapterSuccess, allObjectivesMet) {
+function showCampaignEnding(lastChapterSuccess, allObjectivesMet, lastOutcome) {
+  const totalDiscovered = campaignState.chapterOutcomes.reduce((sum, o) => sum + (o.sampleDiscoveredValue || o.sampleValue || 0), 0);
+  const totalReturned = campaignState.chapterOutcomes.reduce((sum, o) => sum + (o.sampleReturnedValue || (o.success ? (o.sampleValue || 0) : 0)), 0);
   const totalScore = campaignState.chapterOutcomes.reduce((sum, o) => {
-    return sum + o.data + o.fuel + o.food + o.morale;
+    const research = (o.data || 0) + (o.sampleReturnedValue || (o.success ? (o.sampleValue || 0) : 0));
+    return sum + research + o.fuel + o.food + o.morale;
+  }, 0);
+  const totalResearch = campaignState.chapterOutcomes.reduce((sum, o) => {
+    return sum + (o.data || 0) + (o.sampleReturnedValue || (o.success ? (o.sampleValue || 0) : 0));
   }, 0);
 
   const commComplete = campaignState.chapterOutcomes.some((o) => o.commComplete);
-  const stats = { commComplete: commComplete };
+  const stats = { commComplete: commComplete, totalResearch, totalReturned, totalDiscovered };
 
   let ending = campaignEndings[campaignEndings.length - 1];
   for (let i = 0; i < campaignEndings.length - 1; i++) {
@@ -2750,12 +3031,18 @@ function showCampaignEnding(lastChapterSuccess, allObjectivesMet) {
   campaignEndingRank.className = `campaign-ending-rank ${ending.rankClass}`;
   campaignEndingNarrative.innerHTML = ending.narrative.split("\n").map(p => p ? `<p style="margin:0 0 8px">${p}</p>` : "").join("");
 
-  const lastOutcome = campaignState.chapterOutcomes[campaignState.chapterOutcomes.length - 1];
+  lastOutcome = lastOutcome || campaignState.chapterOutcomes[campaignState.chapterOutcomes.length - 1];
   const firstOutcome = campaignState.chapterOutcomes[0];
+  const finalResearch = (lastOutcome.data || 0) + (lastOutcome.sampleReturnedValue || 0);
   campaignEndingStats.innerHTML = `
     <div class="campaign-ending-stat"><span>总评分</span><strong>${totalScore}</strong></div>
+    <div class="campaign-ending-stat"><span>累计科研成果</span><strong>${totalResearch}</strong></div>
+    <div class="campaign-ending-stat"><span>累计现场发现</span><strong style="color:#8fa9ae">${totalDiscovered}</strong></div>
+    <div class="campaign-ending-stat"><span>累计成功返运</span><strong style="color:#f2c14e">${totalReturned}</strong></div>
     <div class="campaign-ending-stat"><span>第一章数据</span><strong>${firstOutcome.data}</strong></div>
-    <div class="campaign-ending-stat"><span>最终数据</span><strong>${lastOutcome.data}</strong></div>
+    <div class="campaign-ending-stat"><span>最终章数据</span><strong>${lastOutcome.data}</strong></div>
+    <div class="campaign-ending-stat"><span>最终章返运</span><strong style="color:#f2c14e">${lastOutcome.sampleReturnedValue || 0}</strong></div>
+    <div class="campaign-ending-stat"><span>最终科研成果</span><strong>${finalResearch}</strong></div>
     <div class="campaign-ending-stat"><span>最终柴油</span><strong>${lastOutcome.fuel}</strong></div>
     <div class="campaign-ending-stat"><span>最终士气</span><strong>${lastOutcome.morale}</strong></div>
     <div class="campaign-ending-stat"><span>通信链路</span><strong>${commComplete ? "✅完成" : "❌未完成"}</strong></div>
@@ -2836,11 +3123,36 @@ function finish(success) {
   const sampleStats = calculateSampleTotalValue();
   const sampleValue = sampleStats.totalValue;
   const sampleIntegrity = sampleStats.avgIntegrity;
+  const discoveredValue = sampleStats.discoveredValue;
+
+  const returnSettlement = actualSuccess
+    ? performReturnSettlement(
+        state.allocations,
+        state.weather,
+        { fuel: state.fuel, food: state.food, morale: state.morale }
+      )
+    : {
+        succeeded: [],
+        failed: [],
+        totalAttempted: 0,
+        totalSucceeded: 0,
+        totalFailed: 0,
+        returnedValue: 0,
+        discoveredValue: discoveredValue,
+        capacityUsed: 0,
+        capacityTotal: 0,
+        conditions: {},
+        logs: actualSuccess ? [] : ["任务失败，未组织返运，所有样本遗失在科考站"]
+      };
+
+  const returnedValue = returnSettlement.returnedValue;
+  const finalResearchValue = state.data + returnedValue;
+
   const score = Math.max(
     0,
-    state.data + state.fuel + state.food + state.morale
+    finalResearchValue + state.fuel + state.food + state.morale
   );
-  const summary = { score, data: state.data, fuel: state.fuel, morale: state.morale, food: state.food, mission: state.mission, sampleValue, sampleIntegrity };
+  const summary = { score, data: state.data, fuel: state.fuel, morale: state.morale, food: state.food, mission: state.mission, sampleValue, sampleIntegrity, discoveredValue, returnedValue, returnSettlement };
 
   let resultText;
   if (actualSuccess) {
@@ -2848,8 +3160,8 @@ function finish(success) {
   } else if (success) {
     const unmet = [];
     if (isCustom) {
-      if (state.mission.dataGoal && state.mission.dataGoal > 0 && state.data < state.mission.dataGoal) {
-        unmet.push(`科研成果未达标（${state.data}/${state.mission.dataGoal}）`);
+      if (state.mission.dataGoal && state.mission.dataGoal > 0 && finalResearchValue < state.mission.dataGoal) {
+        unmet.push(`科研成果未达标（${finalResearchValue}/${state.mission.dataGoal}）`);
       }
       if (state.mission.minFuel && state.fuel < state.mission.minFuel) {
         unmet.push(`柴油未达最低要求（${state.fuel}/${state.mission.minFuel}）`);
@@ -2863,18 +3175,51 @@ function finish(success) {
     }
     const unmetStr = unmet.length > 0 ? `未达成条件：${unmet.join('，')}。` : '';
     resultText = isCustom
-      ? `自定义关卡「${state.mission.name}」撑过了${state.mission.days}天，但部分胜利条件未达成。${unmetStr}最终评分：${score}。`
-      : `撑过了${state.mission.days}天，但未达成全部胜利条件。最终评分：${score}。`;
+      ? `自定义关卡「${state.mission.name}」撑过了${state.mission.days}天，但部分胜利条件未达成。${unmetStr}成功返运样本价值${returnedValue}，最终评分：${score}。`
+      : `撑过了${state.mission.days}天，但未达成全部胜利条件。成功返运样本价值${returnedValue}，最终评分：${score}。`;
   } else {
     resultText = state.mission.failText(summary);
   }
+
   let sampleBreakdown = "";
   sampleTypes.forEach((t) => {
     const s = state.samples[t.id];
-    if (s.totalProduced > 0 || s.count > 0) {
-      sampleBreakdown += `${t.icon}${t.name}：现存${s.count}份(完整度${s.integrity}%)，共产出${s.totalProduced}份，损毁${s.totalLost}份；`;
+    if (s.totalProduced > 0 || s.count > 0 || s.returnAttempted > 0) {
+      const discVal = s.totalProduced * t.value;
+      const retVal = s.returnSucceeded > 0
+        ? Math.round(s.returnSucceeded * t.value * s.returnedIntegrity / 100)
+        : 0;
+      sampleBreakdown += `${t.icon}${t.name}：现场发现${s.totalProduced}份(价值${discVal})→现存${s.count}份(完整度${s.integrity}%)，返运尝试${s.returnAttempted}→成功${s.returnSucceeded}份(完整度${s.returnedIntegrity}%，返运价值${retVal})，损毁${s.totalLost}份；`;
     }
   });
+
+  const returnBreakdown = returnSettlement.logs && returnSettlement.logs.length > 0
+    ? returnSettlement.logs.map((l) => `• ${l}`).join("<br>")
+    : "";
+
+  const returnDetailLines = [];
+  if (returnSettlement.succeeded && returnSettlement.succeeded.length > 0) {
+    const byType = {};
+    returnSettlement.succeeded.forEach((it) => {
+      if (!byType[it.typeId]) byType[it.typeId] = { count: 0, value: 0, type: it.type };
+      byType[it.typeId].count++;
+      byType[it.typeId].value += it.value;
+    });
+    const parts = Object.keys(byType).map((tid) => {
+      const b = byType[tid];
+      return `${b.type.icon}${b.type.name}×${b.count}(+${b.value})`;
+    });
+    returnDetailLines.push(`✅ 成功带回：${parts.join("，")}`);
+  }
+  if (returnSettlement.failed && returnSettlement.failed.length > 0) {
+    const byReason = {};
+    returnSettlement.failed.forEach((it) => {
+      if (!byReason[it.reasonText]) byReason[it.reasonText] = 0;
+      byReason[it.reasonText]++;
+    });
+    const parts = Object.keys(byReason).map((r) => `${r}×${byReason[r]}`);
+    returnDetailLines.push(`❌ 未能带回：${parts.join("，")}`);
+  }
 
   const extraGoals = [];
   if (isCustom) {
@@ -2908,32 +3253,71 @@ function finish(success) {
     data: state.data,
     sampleValue: sampleValue,
     sampleIntegrity: sampleIntegrity,
+    sampleDiscoveredValue: discoveredValue,
+    sampleReturnedValue: returnedValue,
+    returnSettlement: JSON.parse(JSON.stringify(returnSettlement)),
     commComplete: anyChainComplete,
     commChainsComplete: chainsComplete,
     score: score,
     ending: resultText,
     crew: JSON.parse(JSON.stringify(state.crew))
   });
+
   const goalLine = state.mission.dataGoal
-    ? `<p class="result-goal">任务目标：科研成果（数据+样本价值）≥ ${state.mission.dataGoal}，实际：${state.data}，${
-        state.data >= state.mission.dataGoal ? "✅ 达成" : "❌ 未达成"
+    ? `<p class="result-goal">任务目标：科研成果（数据+<b style="color:#f2c14e">返运样本价值</b>）≥ ${state.mission.dataGoal}，实际：${state.data} + <b style="color:#f2c14e">${returnedValue}</b> = <b>${finalResearchValue}</b>，${
+        finalResearchValue >= state.mission.dataGoal ? "✅ 达成" : "❌ 未达成"
       }</p>`
     : "";
-  const sampleScoreLine = sampleValue > 0 || sampleBreakdown
-    ? `<p class="result-goal" style="background:rgba(143,169,174,0.25)">科研样本当前价值：${sampleValue}（加权完整度${sampleIntegrity}%）</p>`
+
+  const sampleScoreLine = discoveredValue > 0 || sampleBreakdown
+    ? `<p class="result-goal" style="background:rgba(143,169,174,0.25)">
+         <span>现场发现样本价值：<b style="color:#8fa9ae">${discoveredValue}</b></span>
+         <span style="margin:0 10px">→</span>
+         <span>当前完整价值：<b>${sampleValue}</b>（${sampleIntegrity}%）</span>
+         <span style="margin:0 10px">→</span>
+         <span>成功返运价值：<b style="color:#f2c14e">${returnedValue}</b>（${returnSettlement.totalSucceeded}/${returnSettlement.totalAttempted || 0}份）</span>
+       </p>`
     : "";
+
+  const returnConditionLine = actualSuccess && returnSettlement.conditions && Object.keys(returnSettlement.conditions).length > 0
+    ? `<p class="result-goal" style="background:rgba(242,193,78,0.12);margin-top:6px">
+         🚚 <b>返运条件</b>：运力 ${returnSettlement.capacityUsed}/${returnSettlement.capacityTotal}单位 · 
+         天气${returnSettlement.conditions.weather?.name || "—"}×${(returnSettlement.conditions.weather?.multiplier || 1).toFixed(2)} · 
+         通信${returnSettlement.conditions.comm?.power || 0}格（${Math.round((returnSettlement.conditions.comm?.rate || 0)*100)}%） · 
+         冷藏${returnSettlement.conditions.food?.power || 0}格（${Math.round((returnSettlement.conditions.food?.rate || 0)*100)}%） · 
+         恒温${returnSettlement.conditions.heat?.power || 0}格（${Math.round((returnSettlement.conditions.heat?.rate || 0)*100)}%） · 
+         综合资源${Math.round((returnSettlement.conditions.resources?.rate || 0)*100)}%
+       </p>`
+    : ( !actualSuccess && sampleValue > 0
+        ? `<p class="result-goal" style="background:rgba(209,76,63,0.18);margin-top:6px">⚠️ 任务失败，无法组织返运，所有样本遗留在科考站（现场发现价值未计入最终成果）</p>`
+        : "" );
+
   const sampleDetailLine = sampleBreakdown
-    ? `<p style="font-size:13px;line-height:1.7;color:#c5d7da;margin-top:8px">${sampleBreakdown}</p>`
+    ? `<div style="margin-top:10px;padding:10px 12px;background:rgba(30,40,45,0.6);border-radius:8px">
+         <div style="font-weight:600;margin-bottom:6px;color:#cfe0e3">📋 样本明细（现场发现 → 现存 → 返运结果）</div>
+         <div style="font-size:12.5px;line-height:1.85;color:#b8cdd1">${sampleBreakdown}</div>
+       </div>`
     : "";
+
+  const returnProcessLine = returnBreakdown || returnDetailLines.length > 0
+    ? `<div style="margin-top:10px;padding:10px 12px;background:rgba(50,60,40,0.5);border-radius:8px">
+         <div style="font-weight:600;margin-bottom:6px;color:#d5e2b5">🚚 返运过程</div>
+         ${returnBreakdown ? `<div style="font-size:12.5px;line-height:1.75;color:#c5d7b5;margin-bottom:6px">${returnBreakdown}</div>` : ""}
+         ${returnDetailLines.length > 0 ? `<div style="font-size:12.5px;line-height:1.75;color:#d9e6d0">${returnDetailLines.join("<br>")}</div>` : ""}
+       </div>`
+    : "";
+
   resultEl.innerHTML = `
     <h2>${actualSuccess ? "任务结束" : (success ? "任务结束（部分条件未达成）" : "任务失败")}</h2>
     <p>${state.mission.name}${isCustom ? " <span style='color:#f2c14e'>【自定义关卡】</span>" : ""}</p>
     ${goalLine}
     ${extraGoalLines}
     ${sampleScoreLine}
-    <p>柴油${state.fuel}，食物${state.food}，士气${state.morale}，科研成果${state.data}，样本价值${sampleValue}。</p>
+    ${returnConditionLine}
+    <p>柴油${state.fuel}，食物${state.food}，士气${state.morale}，科研数据${state.data}，<b style="color:#8fa9ae">现场发现${discoveredValue}</b> → <b style="color:#f2c14e">返运价值${returnedValue}</b> → <b>科研成果${finalResearchValue}</b></p>
     ${sampleDetailLine}
-    <p>${resultText}</p>
+    ${returnProcessLine}
+    <p style="margin-top:12px">${resultText}</p>
     <button id="returnBtn" type="button">返回任务选择台</button>
   `;
   resultEl.classList.remove("hidden");
@@ -3485,6 +3869,7 @@ function renderSamples() {
   const sampleStats = calculateSampleTotalValue();
   sampleTotalValueEl.textContent = sampleStats.totalValue;
   sampleIntegrityEl.textContent = sampleStats.avgIntegrity + "%";
+  sampleDiscoveredValueEl.textContent = sampleStats.discoveredValue;
 
   sampleTypes.forEach((type) => {
     const s = state.samples[type.id];
@@ -3500,6 +3885,21 @@ function renderSamples() {
     }).join(" ");
     const integrityColor = s.integrity >= 70 ? "#4f8a5b" : s.integrity >= 40 ? "#d18b3f" : "#d14c3f";
     const integrityFillColor = s.integrity >= 70 ? "#4f8a5b" : s.integrity >= 40 ? "#f2c14e" : "#d14c3f";
+    const riskColor = type.baseRisk >= 0.15 ? "#d14c3f" : type.baseRisk >= 0.10 ? "#d18b3f" : "#4f8a5b";
+    const riskLabel = type.baseRisk >= 0.15 ? "高风险" : type.baseRisk >= 0.10 ? "中风险" : "低风险";
+    const priorityCfg = getPriorityConfig(s.priority);
+    const discoveredVal = s.totalProduced * type.value;
+    const currentVal = Math.round(s.count * type.value * s.integrity / 100);
+
+    const priorityButtons = returnPriorityLevels.map((p) => `
+      <button type="button" class="priority-btn ${s.priority === p.id ? 'active' : ''}" 
+              data-type="${type.id}" data-priority="${p.id}" 
+              style="border-color:${s.priority === p.id ? p.color : 'transparent'};${s.priority === p.id ? `background:${p.color}22;` : ''}">
+        <span class="priority-stars" style="color:${p.color}">${p.label}</span>
+        <span class="priority-name">${p.name}</span>
+      </button>
+    `).join("");
+
     const card = document.createElement("div");
     card.className = `sample-card sample-${type.id}`;
     card.innerHTML = `
@@ -3515,22 +3915,52 @@ function renderSamples() {
         <div class="sample-value-label"><span>完整度</span><strong style="color:${integrityColor}">${s.integrity}%</strong></div>
         <div class="sample-value-bar"><div class="sample-value-fill" style="width:${s.integrity}%;background:${integrityFillColor}"></div></div>
       </div>
+      <div class="sample-physical">
+        <span class="sample-weight">📦 每份重量 <strong>${type.weight}</strong> 单位</span>
+        <span class="sample-risk" style="color:${riskColor}">⚠ 运输风险 <strong>${riskLabel}</strong>（${Math.round(type.baseRisk * 100)}%）</span>
+      </div>
+      <div class="sample-risk-hint" style="font-size:11px;opacity:.7;margin-top:2px;padding:0 4px">${type.riskHint}</div>
       <div class="sample-req">
         <div class="sample-req-title">保存条件 <small>（需${reqNames}电力≥要求值）</small></div>
         <div class="sample-req-values">${reqValues}</div>
         <div class="sample-req-hint">${type.preserveHint}</div>
       </div>
+      <div class="sample-priority-section">
+        <div class="sample-priority-title">
+          <span>🚚 返运优先级</span>
+          <span class="sample-priority-current" style="color:${priorityCfg.color}">当前：${priorityCfg.label} ${priorityCfg.name}</span>
+        </div>
+        <div class="sample-priority-buttons">${priorityButtons}</div>
+        <div class="sample-priority-hint" style="font-size:11px;opacity:.7;margin-top:4px">${priorityCfg.hint}（运力系数×${priorityCfg.weight}）</div>
+      </div>
       <div class="sample-stats-row">
         <span>单份价值<strong>${type.value}</strong></span>
         <span>实验门槛<strong>${type.labPowerThreshold}格</strong></span>
-        <span>现存价值<strong>${Math.round(s.count * type.value * s.integrity / 100)}</strong></span>
+        <span>现存价值<strong>${currentVal}</strong></span>
+      </div>
+      <div class="sample-stats-row sample-values-row">
+        <span>现场发现<strong style="color:#8fa9ae">${discoveredVal}</strong></span>
+        <span>预计返运<strong style="color:#f2c14e">${s.count > 0 ? '~' + Math.round(currentVal * (0.4 + (type.weight > 2 ? 0.1 : 0))) : '—'}</strong></span>
+        <span>损毁惩罚<strong>-${type.lossWhenFail}%</strong></span>
       </div>
       <div class="sample-stats-row" style="opacity:.75;font-size:11px">
         <span>累计产出<strong>${s.totalProduced}</strong></span>
         <span>累计损毁<strong>${s.totalLost}</strong></span>
-        <span>不达标惩罚<strong>-${type.lossWhenFail}%</strong></span>
+        <span>现存<strong>${s.count}</strong></span>
       </div>
     `;
+
+    card.querySelectorAll(".priority-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const typeId = btn.dataset.type;
+        const priorityId = btn.dataset.priority;
+        if (state.samples[typeId]) {
+          state.samples[typeId].priority = priorityId;
+          renderSamples();
+        }
+      });
+    });
+
     sampleCardsEl.appendChild(card);
   });
 }
@@ -3645,6 +4075,8 @@ function showArchiveDetail(record) {
   archiveDetailMorale.textContent = record.morale;
   archiveDetailData.textContent = record.data;
   archiveDetailSampleValue.textContent = record.sampleValue || 0;
+  archiveDetailSampleDiscovered.textContent = record.sampleDiscoveredValue !== undefined ? record.sampleDiscoveredValue : (record.sampleValue || 0);
+  archiveDetailSampleReturned.textContent = record.sampleReturnedValue !== undefined ? record.sampleReturnedValue : (record.success ? (record.sampleValue || 0) : 0);
   archiveDetailSampleIntegrity.textContent = record.sampleIntegrity !== undefined ? record.sampleIntegrity + '%' : '—';
   if (record.commChainsComplete) {
     const parts = [];
@@ -3659,8 +4091,66 @@ function showArchiveDetail(record) {
   } else {
     archiveDetailComm.textContent = "—";
   }
-  archiveDetailScore.textContent = `综合评分：${record.score}`;
+  const finalResearch = (record.data || 0) + (record.sampleReturnedValue !== undefined ? record.sampleReturnedValue : (record.success ? (record.sampleValue || 0) : 0));
+  archiveDetailScore.textContent = `综合评分：${record.score} （科研成果 ${finalResearch}）`;
   archiveDetailEnding.textContent = record.ending;
+
+  if (record.returnSettlement && (record.returnSettlement.logs || record.returnSettlement.succeeded?.length || record.returnSettlement.failed?.length || record.returnSettlement.totalAttempted > 0)) {
+    archiveDetailReturnSection.style.display = "";
+    const rs = record.returnSettlement;
+    const summaryHtml = [];
+    summaryHtml.push(`<div class="archive-return-summary-row"><span>运力使用</span><strong>${rs.capacityUsed || 0}/${rs.capacityTotal || 0} 单位</strong></div>`);
+    summaryHtml.push(`<div class="archive-return-summary-row"><span>返运尝试</span><strong>${rs.totalAttempted || 0} 份</strong></div>`);
+    summaryHtml.push(`<div class="archive-return-summary-row"><span>成功带回</span><strong style="color:#4f8a5b">${rs.totalSucceeded || 0} 份</strong></div>`);
+    summaryHtml.push(`<div class="archive-return-summary-row"><span>未能带回</span><strong style="color:#d14c3f">${rs.totalFailed || 0} 份</strong></div>`);
+    summaryHtml.push(`<div class="archive-return-summary-row"><span>返运价值</span><strong style="color:#f2c14e">${rs.returnedValue || 0}</strong></div>`);
+    if (rs.conditions) {
+      const c = rs.conditions;
+      const cHtml = [];
+      if (c.weather) cHtml.push(`天气${c.weather.name}×${(c.weather.multiplier||1).toFixed(2)}`);
+      if (c.comm) cHtml.push(`通信${c.comm.power||0}格(${Math.round((c.comm.rate||0)*100)}%)`);
+      if (c.food) cHtml.push(`冷藏${c.food.power||0}格(${Math.round((c.food.rate||0)*100)}%)`);
+      if (c.heat) cHtml.push(`恒温${c.heat.power||0}格(${Math.round((c.heat.rate||0)*100)}%)`);
+      if (c.resources) cHtml.push(`资源${Math.round((c.resources.rate||0)*100)}%`);
+      summaryHtml.push(`<div class="archive-return-summary-row"><span>环境系数</span><strong style="font-size:12px;opacity:.9">${cHtml.join(" · ")}</strong></div>`);
+    }
+    archiveDetailReturnSummary.innerHTML = `<div class="archive-return-summary-grid">${summaryHtml.join("")}</div>`;
+
+    const detailHtml = [];
+    if (rs.logs && rs.logs.length > 0) {
+      detailHtml.push(`<div class="archive-return-logs"><h4>返运日志</h4>${rs.logs.map(l => `<p>• ${l}</p>`).join("")}</div>`);
+    }
+    if (rs.succeeded && rs.succeeded.length > 0) {
+      const byType = {};
+      rs.succeeded.forEach((it) => {
+        if (!byType[it.typeId]) byType[it.typeId] = { count: 0, value: 0, typeName: it.type?.name || it.typeId, icon: it.type?.icon || "📦" };
+        byType[it.typeId].count++;
+        byType[it.typeId].value += it.value || 0;
+      });
+      const parts = Object.keys(byType).map((tid) => {
+        const b = byType[tid];
+        return `${b.icon}${b.typeName}×${b.count}(+${b.value})`;
+      });
+      detailHtml.push(`<div class="archive-return-list"><h4 style="color:#4f8a5b">✅ 成功带回样本</h4><p>${parts.join("，")}</p></div>`);
+    }
+    if (rs.failed && rs.failed.length > 0) {
+      const byReason = {};
+      rs.failed.forEach((it) => {
+        const r = it.reasonText || "未知原因";
+        if (!byReason[r]) byReason[r] = 0;
+        byReason[r]++;
+      });
+      const parts = Object.keys(byReason).map((r) => `${r}×${byReason[r]}`);
+      detailHtml.push(`<div class="archive-return-list"><h4 style="color:#d14c3f">❌ 未能带回样本</h4><p>${parts.join("，")}</p></div>`);
+    }
+    archiveDetailReturnDetails.innerHTML = detailHtml.join("");
+  } else if (!record.success && (record.sampleDiscoveredValue || record.sampleValue) > 0) {
+    archiveDetailReturnSection.style.display = "";
+    archiveDetailReturnSummary.innerHTML = `<div class="archive-return-summary-grid"><div class="archive-return-summary-row"><span>任务状态</span><strong style="color:#d14c3f">任务失败，未组织返运</strong></div><div class="archive-return-summary-row"><span>遗失价值</span><strong style="color:#8fa9ae">${record.sampleDiscoveredValue || record.sampleValue || 0}（样本遗留在科考站）</strong></div></div>`;
+    archiveDetailReturnDetails.innerHTML = "";
+  } else {
+    archiveDetailReturnSection.style.display = "none";
+  }
 
   if (record.crew && Array.isArray(record.crew)) {
     let html = "";
@@ -3726,6 +4216,9 @@ function renderArchive() {
   records.forEach((record) => {
     const card = document.createElement("div");
     card.className = "archive-card";
+    const discoveredVal = record.sampleDiscoveredValue !== undefined ? record.sampleDiscoveredValue : (record.sampleValue || 0);
+    const returnedVal = record.sampleReturnedValue !== undefined ? record.sampleReturnedValue : (record.success ? (record.sampleValue || 0) : 0);
+    const finalResearch = (record.data || 0) + returnedVal;
     card.innerHTML = `
       <div class="archive-card-head">
         <span class="archive-card-mission">${record.missionName}</span>
@@ -3739,8 +4232,12 @@ function renderArchive() {
       </div>
       <div class="archive-card-stats">
         <span>数据<strong>${record.data}</strong></span>
-        <span>样本<strong>${record.sampleValue || 0}</strong></span>
+        <span style="color:#8fa9ae">发现<strong>${discoveredVal}</strong></span>
+        <span style="color:#f2c14e">返运<strong>${returnedVal}</strong></span>
+      </div>
+      <div class="archive-card-stats" style="font-size:12px;opacity:.85">
         <span>完整度<strong>${record.sampleIntegrity !== undefined ? record.sampleIntegrity + '%' : '—'}</strong></span>
+        <span>科研成果<strong>${finalResearch}</strong></span>
       </div>
       <div class="archive-card-score">综合评分：${record.score}</div>
       <p class="archive-card-ending">${record.ending}</p>

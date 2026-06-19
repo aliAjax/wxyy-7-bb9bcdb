@@ -3471,3 +3471,193 @@ h2 {
     font-size: 18px;
   }
 }
+
+/* ========================================
+   样本返运优先级新增样式
+   ======================================== */
+
+.sample-physical {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  margin: 6px 0 2px;
+  background: rgba(30, 45, 50, 0.35);
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.sample-weight,
+.sample-risk {
+  font-size: 12px;
+}
+
+.sample-physical strong {
+  font-size: 13px;
+  margin: 0 2px;
+}
+
+.sample-priority-section {
+  margin: 8px 0;
+  padding: 8px 10px;
+  background: rgba(242, 193, 78, 0.07);
+  border: 1px solid rgba(242, 193, 78, 0.2);
+  border-radius: 8px;
+}
+
+.sample-priority-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: #c5d7da;
+  margin-bottom: 6px;
+}
+
+.sample-priority-current {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.sample-priority-buttons {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-bottom: 2px;
+}
+
+.priority-btn {
+  min-height: unset;
+  height: auto;
+  padding: 6px 4px;
+  background: rgba(30, 45, 50, 0.5);
+  border: 2px solid transparent;
+  border-radius: 6px;
+  color: #a7bec2;
+  font-size: 11px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  transition: all .15s ease;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.priority-btn:hover:not(:disabled) {
+  background: rgba(60, 80, 85, 0.6);
+  transform: translateY(-1px);
+}
+
+.priority-btn.active {
+  box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+  transform: translateY(0);
+}
+
+.priority-stars {
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  line-height: 1;
+}
+
+.priority-name {
+  font-size: 10.5px;
+  opacity: .9;
+}
+
+.sample-values-row {
+  border-top: 1px dashed rgba(143, 169, 174, 0.25);
+  padding-top: 6px !important;
+  margin-top: 4px;
+}
+
+/* 档案馆返运详情样式 */
+.archive-return-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px 14px;
+  margin-top: 4px;
+}
+
+.archive-return-summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  padding: 5px 8px;
+  background: rgba(143, 169, 174, 0.08);
+  border-radius: 5px;
+}
+
+.archive-return-summary-row span {
+  color: #8fa9ae;
+  font-weight: 500;
+}
+
+.archive-return-summary-row strong {
+  color: #cfe0e3;
+  font-size: 14px;
+}
+
+.archive-return-logs,
+.archive-return-list {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: rgba(30, 45, 50, 0.5);
+  border-radius: 8px;
+}
+
+.archive-return-logs h4,
+.archive-return-list h4 {
+  margin: 0 0 6px;
+  font-size: 13px;
+  color: #cfe0e3;
+}
+
+.archive-return-logs p {
+  margin: 0 0 4px;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: #b8cdd1;
+}
+
+.archive-return-list p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: #d5e2b5;
+}
+
+/* 任务选择台加粗文字样式 */
+.mission-desc b {
+  color: #27606b;
+}
+
+/* 教程文字加粗 */
+.tutorial-systems b,
+#tutorialDesc b {
+  color: #f2c14e;
+  font-weight: 700;
+}
+
+/* 结算面板样本文字高亮 */
+.result-goal b {
+  font-weight: 700;
+}
+
+/* 章节结算中发现/返运颜色 */
+.chapter-settle-stat span[style] {
+  font-weight: 600 !important;
+}
+
+@media (max-width: 780px) {
+  .sample-priority-buttons {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .archive-return-summary-grid {
+    grid-template-columns: 1fr;
+  }
+}
