@@ -5531,6 +5531,16 @@ function assignCrewStation(crewId, stationId) {
   render();
 }
 
+function sanitizeEmergencyEvents(events) {
+  if (!Array.isArray(events) || events.length === 0) return [];
+  const sanitized = [];
+  events.forEach((e) => {
+    const s = sanitizeEmergencyEvent(e);
+    if (s) sanitized.push(s);
+  });
+  return sanitized;
+}
+
 function loadCustomLevels() {
   try {
     const raw = localStorage.getItem(CUSTOM_LEVELS_KEY);
@@ -5539,14 +5549,8 @@ function loadCustomLevels() {
     if (!Array.isArray(parsed)) return [];
     return parsed.filter((l) => l && l.id && l.name).map((l) => {
       try {
-        if (Array.isArray(l.emergencyEvents) && l.emergencyEvents.length > 0) {
-          const sanitized = [];
-          l.emergencyEvents.forEach((e) => {
-            const s = sanitizeEmergencyEvent(e);
-            if (s) sanitized.push(s);
-          });
-          l.emergencyEvents = sanitized.length > 0 ? sanitized : undefined;
-        }
+        const sanitized = sanitizeEmergencyEvents(l.emergencyEvents);
+        l.emergencyEvents = sanitized.length > 0 ? sanitized : undefined;
       } catch (ee) {}
       return l;
     });
@@ -5621,6 +5625,41 @@ function getDefaultEditorConfig() {
   };
 }
 
+function missionToEditorConfig(mission) {
+  const weatherWeight = mission.weatherWeight || {};
+  return {
+    name: mission.name || "",
+    tag: mission.tag || "自定义",
+    color: mission.color || "#4f8a5b",
+    desc: mission.desc || "",
+    days: mission.days ?? 7,
+    fuel: mission.initial ? (mission.initial.fuel ?? 80) : 80,
+    morale: mission.initial ? (mission.initial.morale ?? 75) : 75,
+    food: mission.initial ? (mission.initial.food ?? 70) : 70,
+    data: mission.initial ? (mission.initial.data ?? 0) : 0,
+    allocHeat: mission.allocations ? (mission.allocations.heat ?? 3) : 3,
+    allocComm: mission.allocations ? (mission.allocations.comm ?? 2) : 2,
+    allocLab: mission.allocations ? (mission.allocations.lab ?? 4) : 4,
+    allocFood: mission.allocations ? (mission.allocations.food ?? 3) : 3,
+    weightSunny: weatherWeight["晴朗"] ?? 1,
+    weightCold: weatherWeight["低温"] ?? 1,
+    weightBlizzard: weatherWeight["暴风雪"] ?? 1,
+    weightNight: weatherWeight["极夜静风"] ?? 1,
+    dataGoal: mission.dataGoal ?? 150,
+    returnedValueGoal: mission.returnedValueGoal ?? 0,
+    commBonus: !!mission.commBonus,
+    commBonusVal: mission.commBonus || 0,
+    commMoraleBonus: !!mission.commMoraleBonus,
+    foodReserve: !!mission.foodReserve,
+    emergencyChance: mission.emergencyChance !== undefined ? Math.round(mission.emergencyChance * 100) : 40,
+    minFuel: mission.minFuel || 0,
+    minMorale: mission.minMorale || 0,
+    minFood: mission.minFood || 0,
+    intro: mission.intro || "",
+    emergencyEvents: (mission.isCustom && mission.emergencyEvents) ? mission.emergencyEvents : []
+  };
+}
+
 function populateEditor(config) {
   const f = editorFields;
   f.name.value = config.name || "";
@@ -5652,12 +5691,7 @@ function populateEditor(config) {
   f.minFood.value = config.minFood ?? 0;
   f.intro.value = config.intro || "";
 
-  const rawEvents = Array.isArray(config.emergencyEvents) ? config.emergencyEvents : [];
-  editorEmergencyEvents = [];
-  rawEvents.forEach((e) => {
-    const s = sanitizeEmergencyEvent(e);
-    if (s) editorEmergencyEvents.push(s);
-  });
+  editorEmergencyEvents = sanitizeEmergencyEvents(config.emergencyEvents);
   renderEditorEmergencyList();
 }
 
@@ -5705,12 +5739,7 @@ function editorConfigToMission(config, id) {
   };
   const hasAnyWeight = Object.values(weatherWeight).some((v) => v > 0);
 
-  const sanitizedEvents = [];
-  const rawEvents = Array.isArray(config.emergencyEvents) ? config.emergencyEvents : [];
-  rawEvents.forEach((e) => {
-    const s = sanitizeEmergencyEvent(e);
-    if (s) sanitizedEvents.push(s);
-  });
+  const sanitizedEvents = sanitizeEmergencyEvents(config.emergencyEvents);
 
   return {
     id: id,
@@ -5985,36 +6014,7 @@ function editLevel(id) {
   editorDeleteBtn.classList.remove("hidden");
   editorSaveBtn.textContent = "💾 更新此关卡";
 
-  populateEditor({
-    name: level.name,
-    tag: level.tag,
-    color: level.color,
-    desc: level.desc,
-    days: level.days,
-    fuel: level.initial.fuel,
-    morale: level.initial.morale,
-    food: level.initial.food,
-    data: level.initial.data,
-    allocHeat: level.allocations.heat,
-    allocComm: level.allocations.comm,
-    allocLab: level.allocations.lab,
-    allocFood: level.allocations.food,
-    weightSunny: level.weatherWeight ? level.weatherWeight["晴朗"] ?? 1 : 1,
-    weightCold: level.weatherWeight ? level.weatherWeight["低温"] ?? 1 : 1,
-    weightBlizzard: level.weatherWeight ? level.weatherWeight["暴风雪"] ?? 1 : 1,
-    weightNight: level.weatherWeight ? level.weatherWeight["极夜静风"] ?? 1 : 1,
-    dataGoal: level.dataGoal,
-    commBonus: !!level.commBonus,
-    commBonusVal: level.commBonus || 0,
-    commMoraleBonus: !!level.commMoraleBonus,
-    foodReserve: !!level.foodReserve,
-    emergencyChance: level.emergencyChance !== undefined ? Math.round(level.emergencyChance * 100) : 40,
-    minFuel: level.minFuel || 0,
-    minMorale: level.minMorale || 0,
-    minFood: level.minFood || 0,
-    intro: level.intro,
-    emergencyEvents: level.emergencyEvents || []
-  });
+  populateEditor(missionToEditorConfig(level));
 
   editorValidation.classList.add("hidden");
   levelEditorPanel.classList.remove("hidden");
@@ -6129,62 +6129,29 @@ function copyFromSelectedLevel() {
     return;
   }
 
-  const config = {
-    name: mission.name,
-    tag: mission.tag,
-    color: mission.color,
-    desc: mission.desc,
-    days: mission.days,
-    fuel: mission.initial.fuel,
-    morale: mission.initial.morale,
-    food: mission.initial.food,
-    data: mission.initial.data,
-    allocHeat: mission.allocations.heat,
-    allocComm: mission.allocations.comm,
-    allocLab: mission.allocations.lab,
-    allocFood: mission.allocations.food,
-    weightSunny: mission.weatherWeight ? mission.weatherWeight["晴朗"] ?? 1 : 1,
-    weightCold: mission.weatherWeight ? mission.weatherWeight["低温"] ?? 1 : 1,
-    weightBlizzard: mission.weatherWeight ? mission.weatherWeight["暴风雪"] ?? 1 : 1,
-    weightNight: mission.weatherWeight ? mission.weatherWeight["极夜静风"] ?? 1 : 1,
-    dataGoal: mission.dataGoal || 0,
-    commBonus: !!mission.commBonus,
-    commBonusVal: mission.commBonus || 0,
-    commMoraleBonus: !!mission.commMoraleBonus,
-    foodReserve: !!mission.foodReserve,
-    emergencyChance: mission.emergencyChance !== undefined ? Math.round(mission.emergencyChance * 100) : 40,
-    minFuel: mission.minFuel || 0,
-    minMorale: mission.minMorale || 0,
-    minFood: mission.minFood || 0,
-    intro: mission.intro || "",
-    emergencyEvents: (mission.isCustom && mission.emergencyEvents) ? mission.emergencyEvents : []
-  };
+  const config = missionToEditorConfig(mission);
+  let messageHtml = "";
 
   if (mission.isCustom && editorEditingId === mission.id) {
     populateEditor(config);
-    editorValidation.classList.remove("hidden");
-    editorValidation.className = "editor-validation success";
-    editorValidation.innerHTML = `<strong>✅ 已刷新配置</strong>已重新载入当前编辑的自定义关卡「${mission.name}」的配置。`;
-  } else if (mission.isCustom) {
-    config.name = mission.name + " 副本";
-    populateEditor(config);
-    editorEditingId = null;
-    editorDeleteBtn.classList.add("hidden");
-    editorSaveBtn.textContent = "💾 保存为新关卡";
-    editorValidation.classList.remove("hidden");
-    editorValidation.className = "editor-validation success";
-    editorValidation.innerHTML = `<strong>✅ 已复制配置</strong>已从自定义关卡「${mission.name}」复制配置，名称已自动添加「副本」后缀，调整后可保存为新关卡。`;
+    messageHtml = `<strong>✅ 已刷新配置</strong>已重新载入当前编辑的自定义关卡「${mission.name}」的配置。`;
   } else {
     config.name = mission.name + " 副本";
-    config.tag = config.tag || "自定义";
+    if (!mission.isCustom) config.tag = config.tag || "自定义";
     populateEditor(config);
     editorEditingId = null;
     editorDeleteBtn.classList.add("hidden");
     editorSaveBtn.textContent = "💾 保存为新关卡";
-    editorValidation.classList.remove("hidden");
-    editorValidation.className = "editor-validation success";
-    editorValidation.innerHTML = `<strong>✅ 已复制配置</strong>已从默认关卡「${mission.name}」复制配置，名称已自动添加「副本」后缀，调整后可保存为新的自定义关卡。默认关卡不会被覆盖。`;
+    if (mission.isCustom) {
+      messageHtml = `<strong>✅ 已复制配置</strong>已从自定义关卡「${mission.name}」复制配置，名称已自动添加「副本」后缀，调整后可保存为新关卡。`;
+    } else {
+      messageHtml = `<strong>✅ 已复制配置</strong>已从默认关卡「${mission.name}」复制配置，名称已自动添加「副本」后缀，调整后可保存为新的自定义关卡。默认关卡不会被覆盖。`;
+    }
   }
+
+  editorValidation.classList.remove("hidden");
+  editorValidation.className = "editor-validation success";
+  editorValidation.innerHTML = messageHtml;
 
   levelEditorPanel.scrollIntoView({ behavior: "smooth", block: "start" });
 }
