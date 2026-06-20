@@ -209,6 +209,33 @@ const editorFields = {
   intro: document.getElementById("editorIntro")
 };
 
+const editorSimulateBtn = document.getElementById("editorSimulateBtn");
+const simulationConfigEl = document.getElementById("simulationConfig");
+const simRunCountEl = document.getElementById("simRunCount");
+const simStartBtn = document.getElementById("simStartBtn");
+const simCancelBtn = document.getElementById("simCancelBtn");
+const simProgressEl = document.getElementById("simProgress");
+const simProgressFill = document.getElementById("simProgressFill");
+const simProgressText = document.getElementById("simProgressText");
+const simulationResultsEl = document.getElementById("simulationResults");
+const simRunInfoEl = document.getElementById("simRunInfo");
+const simWinRateEl = document.getElementById("simWinRate");
+const simWinRateBar = document.getElementById("simWinRateBar");
+const simWinRateHintEl = document.getElementById("simWinRateHint");
+const simAvgResearchEl = document.getElementById("simAvgResearch");
+const simResearchTargetEl = document.getElementById("simResearchTarget");
+const simAvgReturnedEl = document.getElementById("simAvgReturned");
+const simReturnedTargetEl = document.getElementById("simReturnedTarget");
+const simAvgDaysEl = document.getElementById("simAvgDays");
+const simDaysTargetEl = document.getElementById("simDaysTarget");
+const simFailureReasonsEl = document.getElementById("simFailureReasons");
+const simBottlenecksEl = document.getElementById("simBottlenecks");
+const simRecommendationsEl = document.getElementById("simRecommendations");
+const simExtremeWarningEl = document.getElementById("simExtremeWarning");
+
+let simCancelRequested = false;
+let simRunning = false;
+
 let editorEditingId = null;
 let editorSaveHintTimer = null;
 let editorEmergencyEvents = [];
@@ -6867,5 +6894,1037 @@ function renderDayPreview() {
     previewUncertainty.classList.add("hidden");
   }
 }
+
+const BalanceSimulator = (function () {
+
+  function simCreateInitialSamples() {
+    const s = {};
+    sampleTypes.forEach((t) => {
+      s[t.id] = {
+        count: 0,
+        integrity: 100,
+        priority: t.id === "aerosol" ? "high" : t.id === "icecore" ? "normal" : t.id === "astronomy" ? "normal" : "critical",
+        totalProduced: 0,
+        totalLost: 0,
+        returnAttempted: 0,
+        returnSucceeded: 0,
+        returnedIntegrity: 0
+      };
+    });
+    return s;
+  }
+
+  function simCreateInitialEquipment() {
+    const eq = {};
+    equipmentDefs.forEach((def) => {
+      eq[def.id] = { durability: 100, level: 1 };
+    });
+    return eq;
+  }
+
+  function simCreateInitialCommChains() {
+    const chains = {};
+    commChains.forEach((c) => {
+      chains[c.id] = {
+        isComplete: false,
+        currentPhaseIndex: 0,
+        phaseProgress: 0,
+        delayDays: 0,
+        completedPhases: [],
+        totalRewards: { fuel: 0, food: 0, morale: 0, data: 0 },
+        specialLogs: []
+      };
+    });
+    return chains;
+  }
+
+  function simCreateState(mission) {
+    return {
+      started: true,
+      mission: deepCloneSafe(mission),
+      day: 1,
+      fuel: mission.initial.fuel,
+      morale: mission.initial.morale,
+      food: mission.initial.food,
+      data: mission.initial.data,
+      weather: null,
+      allocations: { ...mission.allocations },
+      nextDayEffects: null,
+      equipment: simCreateInitialEquipment(),
+      samples: simCreateInitialSamples(),
+      commChains: simCreateInitialCommChains(),
+      activeCommChainId: mission.defaultCommChain || commChains[0].id,
+      lastCommAdvancedDay: 0,
+      simStats: {
+        firstZeroResource: null,
+        totalFuelSpent: 0,
+        totalFoodSpent: 0,
+        totalMoraleLost: 0,
+        daysSurvived: 0,
+        weatherCounts: { "晴朗": 0, "低温": 0, "暴风雪": 0, "极夜静风": 0 }
+      }
+    };
+  }
+
+  function simPickWeather(mission) {
+    let weatherWeight = mission.weatherWeight;
+    if (!weatherWeight) {
+      return weatherDeck[Math.floor(Math.random() * weatherDeck.length)];
+    }
+    const weighted = [];
+    weatherDeck.forEach((w) => {
+      const weight = weatherWeight.hasOwnProperty(w.name) ? weatherWeight[w.name] : 1;
+      if (weight > 0) {
+        for (let i = 0; i < weight; i++) weighted.push(w);
+      }
+    });
+    if (weighted.length === 0) {
+      return weatherDeck[Math.floor(Math.random() * weatherDeck.length)];
+    }
+    return weighted[Math.floor(Math.random() * weighted.length)];
+  }
+
+  function simCalculateEquipmentEffects(simState) {
+    const effects = {
+      heatReqAdj: 0,
+      commEfficiency: 1.0,
+      labEfficiency: 1.0,
+      foodLossAdj: 0,
+      details: []
+    };
+    const heatEq = simState.equipment.heat;
+    if (heatEq.durability < 60) {
+      const adj = Math.ceil((60 - heatEq.durability) / 20);
+      effects.heatReqAdj += adj;
+    }
+    if (heatEq.level >= 2) effects.heatReqAdj -= 1;
+    if (heatEq.level >= 3) effects.heatReqAdj -= 1;
+
+    const commEq = simState.equipment.comm;
+    if (commEq.durability < 60) {
+      effects.commEfficiency = Math.max(0.3, commEq.durability / 60);
+    }
+    if (commEq.level >= 2) effects.commEfficiency += 0.2;
+    if (commEq.level >= 3) effects.commEfficiency += 0.3;
+
+    const labEq = simState.equipment.lab;
+    if (labEq.durability < 60) {
+      effects.labEfficiency = Math.max(0.3, labEq.durability / 60);
+    }
+    if (labEq.level >= 2) effects.labEfficiency += 0.2;
+    if (labEq.level >= 3) effects.labEfficiency += 0.3;
+
+    const foodEq = simState.equipment.food;
+    if (foodEq.durability < 60) {
+      const adj = Math.ceil((60 - foodEq.durability) / 15);
+      effects.foodLossAdj += adj;
+    }
+    if (foodEq.level >= 2) effects.foodLossAdj -= 1;
+    if (foodEq.level >= 3) effects.foodLossAdj -= 1;
+
+    return effects;
+  }
+
+  function simDegradeEquipment(simState) {
+    const weatherMult = weatherDurMultiplier[simState.weather.name] || 1.0;
+    equipmentDefs.forEach((def) => {
+      const eq = simState.equipment[def.id];
+      let loss = def.baseDurLoss * weatherMult;
+      let lowPowerMult = 1.0;
+      if (def.id === "heat" && simState.allocations.heat < simState.weather.heat) lowPowerMult = 1.5;
+      if (def.id === "comm" && simState.allocations.comm < simState.weather.comm) lowPowerMult = 1.5;
+      if (def.id === "lab" && simState.allocations.lab < 2) lowPowerMult = 1.4;
+      if (def.id === "food" && simState.allocations.food < 2) lowPowerMult = 1.4;
+      loss *= lowPowerMult;
+      eq.durability = Math.max(0, Math.round(eq.durability - loss));
+    });
+  }
+
+  function simProduceSamples(simState, labEfficiency) {
+    const labPower = simState.allocations.lab;
+    sampleTypes.forEach((type) => {
+      const s = simState.samples[type.id];
+      if (labPower < type.labPowerThreshold) return;
+      const baseChance = 0.25 + (labPower - type.labPowerThreshold) * 0.12;
+      const effMult = 0.8 + labEfficiency * 0.4;
+      const bonusMult = type.labPowerBonus !== undefined ? type.labPowerBonus : 1.0;
+      const chance = Math.min(0.95, baseChance * effMult * bonusMult);
+      const count = Math.random() < chance ? 1 : 0;
+      if (count > 0) {
+        const extra = Math.random() < (chance * 0.35) ? 1 : 0;
+        const total = count + extra;
+        s.count += total;
+        s.totalProduced += total;
+      }
+    });
+  }
+
+  function simCheckSamplePreservation(simState) {
+    const allocations = simState.allocations;
+    sampleTypes.forEach((type) => {
+      const s = simState.samples[type.id];
+      if (s.count <= 0) return;
+      const req = type.preserveReq;
+      let failedReqs = [];
+      let shortfallRatio = 0;
+      Object.keys(req).forEach((sysId) => {
+        const needed = req[sysId];
+        const have = allocations[sysId] || 0;
+        if (have < needed) {
+          failedReqs.push(sysId);
+          shortfallRatio += (needed - have) / needed;
+        }
+      });
+      if (failedReqs.length > 0) {
+        const baseLoss = type.lossWhenFail;
+        const weatherMult = simState.weather.name === "暴风雪" ? 1.4 : simState.weather.name === "低温" ? 1.2 : 1.0;
+        const lossPct = Math.min(85, baseLoss * shortfallRatio * weatherMult * (0.6 + Math.random() * 0.8));
+        s.integrity = Math.max(0, Math.round(s.integrity - lossPct));
+        if (s.integrity <= 25 && s.count > 0 && Math.random() < (1 - s.integrity / 100)) {
+          const lostCount = Math.min(s.count, 1 + Math.floor((100 - s.integrity) / 40));
+          if (lostCount > 0) {
+            s.count -= lostCount;
+            s.totalLost += lostCount;
+          }
+        }
+      } else if (s.integrity < 100) {
+        s.integrity = Math.min(100, s.integrity + 1);
+      }
+      if (s.count > 0) {
+        const dailyDecay = Math.random() < 0.3 ? Math.random() * 1.5 : 0;
+        if (dailyDecay > 0 && s.integrity > 30) {
+          s.integrity = Math.max(30, Math.round(s.integrity - dailyDecay));
+        }
+      }
+    });
+  }
+
+  function simProcessCommChainDay(simState, eqEffects) {
+    const activeChainId = simState.activeCommChainId;
+    const chain = commChains.find((c) => c.id === activeChainId);
+    const cs = simState.commChains[activeChainId];
+    if (!chain || !cs) return;
+    if (cs.isComplete) return;
+    if (simState.lastCommAdvancedDay === simState.day) return;
+
+    const phase = chain.phases[cs.currentPhaseIndex];
+    if (!phase) return;
+
+    const commAllocated = simState.allocations.comm;
+    const commRequired = simState.weather.comm;
+    const commOk = commAllocated >= commRequired;
+    const commEfficiency = eqEffects ? eqEffects.commEfficiency : 1.0;
+    const effectiveCommMin = Math.ceil(phase.commMin / Math.max(0.4, commEfficiency));
+
+    const isInterruptWeather = chain.interruptWeathers && chain.interruptWeathers.includes(simState.weather.name);
+
+    if (isInterruptWeather) {
+      const loss = Math.ceil(cs.phaseProgress * COMM_INTERRUPT_PENALTY);
+      cs.phaseProgress = Math.max(0, cs.phaseProgress - loss);
+      if (cs.delayDays < COMM_DELAY_MAX) cs.delayDays += 1;
+      return;
+    }
+
+    if (!commOk || commAllocated < effectiveCommMin) {
+      const loss = Math.ceil(cs.phaseProgress * COMM_INTERRUPT_PENALTY);
+      cs.phaseProgress = Math.max(0, cs.phaseProgress - loss);
+      if (cs.delayDays < COMM_DELAY_MAX) cs.delayDays += 1;
+      return;
+    }
+
+    cs.delayDays = Math.max(0, cs.delayDays - 1);
+    cs.phaseProgress += 1;
+    simState.lastCommAdvancedDay = simState.day;
+
+    if (cs.phaseProgress >= phase.requiredDays) {
+      cs.completedPhases.push(phase.id);
+      if (phase.reward) {
+        if (phase.reward.fuel) { simState.fuel += phase.reward.fuel; cs.totalRewards.fuel += phase.reward.fuel; }
+        if (phase.reward.food) { simState.food += phase.reward.food; cs.totalRewards.food += phase.reward.food; }
+        if (phase.reward.morale) { simState.morale += phase.reward.morale; cs.totalRewards.morale += phase.reward.morale; }
+        if (phase.reward.data) { simState.data += phase.reward.data; cs.totalRewards.data += phase.reward.data; }
+      }
+      cs.currentPhaseIndex += 1;
+      cs.phaseProgress = 0;
+      if (cs.currentPhaseIndex >= chain.phases.length) {
+        cs.isComplete = true;
+      }
+    }
+  }
+
+  function simCalculateSampleTotalValue(simState) {
+    let total = 0;
+    let totalDiscoveredValue = 0;
+    let totalWeight = 0;
+    let weightedIntegrity = 0;
+    sampleTypes.forEach((type) => {
+      const s = simState.samples[type.id];
+      const val = s.count * type.value;
+      const integrityFactor = s.integrity / 100;
+      const discoveredVal = s.totalProduced * type.value;
+      total += val * integrityFactor;
+      totalDiscoveredValue += discoveredVal;
+      weightedIntegrity += s.integrity * val;
+      totalWeight += val;
+    });
+    const avgIntegrity = totalWeight > 0 ? Math.round(weightedIntegrity / totalWeight) : 100;
+    return { totalValue: Math.round(total), avgIntegrity, discoveredValue: totalDiscoveredValue };
+  }
+
+  function simPerformReturnSettlement(simState) {
+    const allocations = simState.allocations;
+    const weather = simState.weather;
+    const finalResources = { fuel: simState.fuel, food: simState.food, morale: simState.morale };
+
+    let returnedValue = 0;
+    const commPower = allocations.comm || 0;
+    const foodPower = allocations.food || 0;
+    const heatPower = allocations.heat || 0;
+    const { fuel, food, morale } = finalResources;
+
+    const weatherMultMap = { "晴朗": 1.0, "低温": 0.85, "暴风雪": 0.55, "极夜静风": 0.95 };
+    const weatherMult = weatherMultMap[weather.name] || 1.0;
+
+    const commSuccessRate = Math.min(0.95, 0.4 + commPower * 0.12);
+    const foodPreserveRate = Math.min(0.95, 0.5 + foodPower * 0.10);
+    const heatStableRate = Math.min(0.95, 0.5 + heatPower * 0.10);
+    const resourceRate = Math.min(0.95, 0.2 + (fuel / 100) * 0.25 + (food / 100) * 0.25 + (morale / 100) * 0.30);
+
+    const sortedTypes = [...sampleTypes].sort((a, b) => {
+      const pa = getPriorityConfig(simState.samples[a.id].priority);
+      const pb = getPriorityConfig(simState.samples[b.id].priority);
+      return pb.weight - pa.weight;
+    });
+
+    sortedTypes.forEach((type) => {
+      const s = simState.samples[type.id];
+      if (s.count <= 0) return;
+      for (let i = 0; i < s.count; i++) {
+        s.returnAttempted++;
+        const successProb = Math.max(0, Math.min(0.98,
+          weatherMult * commSuccessRate * foodPreserveRate * heatStableRate * resourceRate * (1 - type.baseRisk)
+        ));
+        if (Math.random() < successProb) {
+          s.returnSucceeded++;
+          const integrityFactor = s.integrity / 100;
+          returnedValue += Math.round(type.value * integrityFactor);
+        }
+      }
+    });
+
+    return returnedValue;
+  }
+
+  function simCheckCustomVictory(simState, finalResearchValue, returnedValue) {
+    if (!simState.mission || !simState.mission.isCustom) return true;
+    let ok = true;
+    const research = finalResearchValue;
+    const returned = returnedValue;
+    if (simState.mission.dataGoal && simState.mission.dataGoal > 0 && research < simState.mission.dataGoal) ok = false;
+    if (simState.mission.returnedValueGoal && simState.mission.returnedValueGoal > 0 && returned < simState.mission.returnedValueGoal) ok = false;
+    if (simState.mission.minFuel && simState.fuel < simState.mission.minFuel) ok = false;
+    if (simState.mission.minMorale && simState.morale < simState.mission.minMorale) ok = false;
+    if (simState.mission.minFood && simState.food < simState.mission.minFood) ok = false;
+    return ok;
+  }
+
+  function simGetEmergencyPool(simState) {
+    try {
+      const mission = simState.mission;
+      const day = simState.day;
+      if (mission && mission.isCustom && mission.emergencyEvents && Array.isArray(mission.emergencyEvents) && mission.emergencyEvents.length > 0) {
+        const filtered = mission.emergencyEvents.filter((e) => {
+          if (!e || typeof e !== "object") return false;
+          const minD = e.dayMin != null ? parseInt(e.dayMin) || 1 : 1;
+          const maxD = e.dayMax != null ? parseInt(e.dayMax) || 999 : 999;
+          return day >= minD && day <= maxD;
+        });
+        if (filtered.length > 0) return filtered;
+        return [];
+      }
+      return emergencyEvents.filter((e) => !!e);
+    } catch (e) {
+      return emergencyEvents;
+    }
+  }
+
+  function simPickWeightedEmergency(pool) {
+    try {
+      if (!pool || pool.length === 0) return null;
+      const weights = pool.map((e) => Math.max(1, parseInt(e.weight) || 1));
+      const total = weights.reduce((a, b) => a + b, 0);
+      if (total <= 0) return pool[Math.floor(Math.random() * pool.length)];
+      let r = Math.random() * total;
+      for (let i = 0; i < pool.length; i++) {
+        r -= weights[i];
+        if (r <= 0) return pool[i];
+      }
+      return pool[pool.length - 1];
+    } catch (e) {
+      return pool && pool.length ? pool[0] : null;
+    }
+  }
+
+  function simGetEmergencyChance(simState) {
+    if (simState.mission && simState.mission.emergencyChance !== undefined) {
+      return simState.mission.emergencyChance;
+    }
+    return EMERGENCY_CHANCE;
+  }
+
+  function simProcessEmergency(simState) {
+    const pool = simGetEmergencyPool(simState);
+    const evt = simPickWeightedEmergency(pool);
+    if (!evt) return;
+
+    let bestIdx = 0;
+    let bestScore = -Infinity;
+    evt.options.forEach((opt, idx) => {
+      const fx = opt.effects || {};
+      let score = 0;
+      if (fx.fuel) score += fx.fuel * 1.2;
+      if (fx.food) score += fx.food * 1.3;
+      if (fx.morale) score += fx.morale * 1.0;
+      if (fx.data) score += fx.data * 0.6;
+      if (fx.nextDayPowerPenalty) score -= fx.nextDayPowerPenalty * 3;
+      if (fx.nextDayFuelRisk) score -= fx.nextDayFuelRisk * 0.6;
+      if (score > bestScore) {
+        bestScore = score;
+        bestIdx = idx;
+      }
+    });
+
+    const chosen = evt.options[bestIdx];
+    const fx = chosen.effects || {};
+    if (fx.fuel) simState.fuel += fx.fuel;
+    if (fx.food) simState.food += fx.food;
+    if (fx.morale) simState.morale += fx.morale;
+    if (fx.data) simState.data += fx.data;
+
+    if (fx.nextDayPowerPenalty || fx.nextDayFuelRisk) {
+      if (!simState.nextDayEffects) simState.nextDayEffects = {};
+      if (fx.nextDayPowerPenalty) simState.nextDayEffects.powerPenalty = fx.nextDayPowerPenalty;
+      if (fx.nextDayFuelRisk) simState.nextDayEffects.fuelRisk = fx.nextDayFuelRisk;
+    }
+  }
+
+  function simApplyNextDayEffects(simState) {
+    if (!simState.nextDayEffects) return;
+    const fx = simState.nextDayEffects;
+    if (fx.powerPenalty && fx.powerPenalty > 0) {
+      simState.weather = { ...simState.weather, power: Math.max(4, simState.weather.power - fx.powerPenalty) };
+    }
+    if (fx.fuelRisk && fx.fuelRisk > 0) {
+      if (Math.random() < 0.5) {
+        simState.fuel -= fx.fuelRisk;
+      }
+    }
+    simState.nextDayEffects = null;
+  }
+
+  function simSmartAllocation(simState, weather) {
+    const eqEffects = simCalculateEquipmentEffects(simState);
+    const effectiveHeatReq = Math.max(1, weather.heat + eqEffects.heatReqAdj);
+    const commReq = weather.comm;
+    const totalPower = weather.power;
+
+    const alloc = { heat: 0, comm: 0, lab: 0, food: 0 };
+
+    alloc.heat = Math.min(totalPower, effectiveHeatReq);
+    let remaining = totalPower - alloc.heat;
+
+    alloc.comm = Math.min(remaining, commReq);
+    remaining -= alloc.comm;
+
+    if (simState.food < 20) {
+      const foodAlloc = Math.min(remaining, 4);
+      alloc.food += foodAlloc;
+      remaining -= foodAlloc;
+    }
+
+    if (remaining > 0) {
+      const labTarget = 5;
+      const labAlloc = Math.min(remaining, labTarget);
+      alloc.lab += labAlloc;
+      remaining -= labAlloc;
+    }
+
+    if (remaining > 0) {
+      const foodAdd = Math.min(remaining, 4 - alloc.food);
+      alloc.food += foodAdd;
+      remaining -= foodAdd;
+    }
+
+    if (remaining > 0) {
+      alloc.heat += Math.min(remaining, 2);
+      remaining -= Math.min(remaining, 2);
+    }
+    if (remaining > 0) {
+      alloc.lab += remaining;
+    }
+
+    simState.allocations = alloc;
+  }
+
+  function simNormalize(simState) {
+    simState.fuel = Math.max(0, Math.min(100, Math.round(simState.fuel)));
+    simState.food = Math.max(0, Math.min(100, Math.round(simState.food)));
+    simState.morale = Math.max(0, Math.min(100, Math.round(simState.morale)));
+    simState.data = Math.max(0, Math.round(simState.data));
+  }
+
+  function simTrackFirstZero(simState) {
+    if (!simState.simStats.firstZeroResource) {
+      if (simState.fuel <= 0) simState.simStats.firstZeroResource = "fuel";
+      else if (simState.food <= 0) simState.simStats.firstZeroResource = "food";
+      else if (simState.morale <= 0) simState.simStats.firstZeroResource = "morale";
+    }
+  }
+
+  function runSingleSimulation(mission, options) {
+    const simState = simCreateState(mission);
+    simState.weather = simPickWeather(mission);
+    simSmartAllocation(simState, simState.weather);
+
+    let finished = false;
+    let success = false;
+    let failReason = null;
+
+    while (!finished) {
+      simState.simStats.weatherCounts[simState.weather.name] = (simState.simStats.weatherCounts[simState.weather.name] || 0) + 1;
+
+      const eqEffects = simCalculateEquipmentEffects(simState);
+
+      const spent = simState.allocations.heat + simState.allocations.comm + simState.allocations.lab + simState.allocations.food;
+      let fuelCost = spent + (simState.weather.name === "暴风雪" ? 4 : 2);
+      fuelCost = Math.max(1, fuelCost - 2);
+      simState.fuel -= fuelCost;
+      simState.simStats.totalFuelSpent += fuelCost;
+
+      const effectiveHeatReq = Math.max(1, simState.weather.heat + eqEffects.heatReqAdj);
+      const heatGap = Math.max(0, effectiveHeatReq - simState.allocations.heat);
+      const commGap = Math.max(0, simState.weather.comm - simState.allocations.comm);
+      const commOk = simState.allocations.comm >= simState.weather.comm;
+
+      const baseMoraleLoss = heatGap * 9 + commGap * 5;
+      simState.morale -= baseMoraleLoss;
+      simState.simStats.totalMoraleLost += baseMoraleLoss;
+
+      if (simState.mission.commMoraleBonus && commOk) {
+        simState.morale += 3;
+      }
+      simState.morale += 2;
+
+      let foodLoss = simState.mission.foodReserve
+        ? Math.max(2, 6 - simState.allocations.food)
+        : Math.max(3, 8 - simState.allocations.food);
+      foodLoss = Math.max(1, foodLoss - 2);
+      foodLoss += eqEffects.foodLossAdj;
+      foodLoss = Math.max(1, foodLoss);
+      simState.food -= foodLoss;
+      simState.simStats.totalFoodSpent += foodLoss;
+
+      simProduceSamples(simState, eqEffects.labEfficiency);
+      simCheckSamplePreservation(simState);
+
+      let dataGain = 0;
+      if (commOk) {
+        dataGain += Math.round(2 * eqEffects.commEfficiency);
+      }
+      if (simState.mission.commBonus && commOk) {
+        dataGain += Math.round(simState.mission.commBonus * eqEffects.commEfficiency);
+      }
+      simState.data += dataGain;
+
+      simProcessCommChainDay(simState, eqEffects);
+      simDegradeEquipment(simState);
+
+      simNormalize(simState);
+      simTrackFirstZero(simState);
+
+      if (simState.fuel <= 0 || simState.food <= 0 || simState.morale <= 0) {
+        finished = true;
+        success = false;
+        failReason = simState.simStats.firstZeroResource || "resource";
+        simState.simStats.daysSurvived = simState.day;
+        break;
+      }
+
+      if (simState.day >= simState.mission.days) {
+        finished = true;
+        success = true;
+        simState.simStats.daysSurvived = simState.mission.days;
+        break;
+      }
+
+      if (Math.random() < simGetEmergencyChance(simState)) {
+        simProcessEmergency(simState);
+        simNormalize(simState);
+        simTrackFirstZero(simState);
+        if (simState.fuel <= 0 || simState.food <= 0 || simState.morale <= 0) {
+          finished = true;
+          success = false;
+          failReason = simState.simStats.firstZeroResource || "emergency";
+          simState.simStats.daysSurvived = simState.day;
+          break;
+        }
+      }
+
+      simState.day += 1;
+      simState.weather = simPickWeather(mission);
+      simApplyNextDayEffects(simState);
+      simSmartAllocation(simState, simState.weather);
+      simNormalize(simState);
+    }
+
+    const sampleStats = simCalculateSampleTotalValue(simState);
+    const returnedValue = success ? simPerformReturnSettlement(simState) : 0;
+    const finalResearch = simState.data + returnedValue;
+
+    let actualSuccess = success;
+    if (success && mission.isCustom) {
+      actualSuccess = simCheckCustomVictory(simState, finalResearch, returnedValue);
+      if (!actualSuccess) {
+        failReason = "victory_condition";
+      }
+    }
+
+    return {
+      success: actualSuccess,
+      failReason: failReason,
+      day: simState.day,
+      daysSurvived: simState.simStats.daysSurvived,
+      finalFuel: simState.fuel,
+      finalFood: simState.food,
+      finalMorale: simState.morale,
+      finalData: simState.data,
+      researchValue: finalResearch,
+      returnedValue: returnedValue,
+      sampleDiscovered: sampleStats.discoveredValue,
+      weatherCounts: simState.simStats.weatherCounts,
+      firstZeroResource: simState.simStats.firstZeroResource,
+      commComplete: simState.commChains[simState.activeCommChainId]?.isComplete || false
+    };
+  }
+
+  async function runBalanceSimulation(mission, runCount, onProgress, shouldCancel) {
+    const results = [];
+    const batchSize = runCount > 200 ? 20 : 10;
+
+    for (let i = 0; i < runCount; i++) {
+      if (shouldCancel && shouldCancel()) break;
+      results.push(runSingleSimulation(mission));
+      if ((i + 1) % batchSize === 0 || i === runCount - 1) {
+        if (onProgress) onProgress(i + 1, runCount);
+        await new Promise((r) => setTimeout(r, 0));
+      }
+    }
+
+    return analyzeSimResults(results, mission, runCount);
+  }
+
+  function analyzeSimResults(results, mission, totalRuns) {
+    const actualRuns = results.length;
+    const successes = results.filter((r) => r.success);
+    const failures = results.filter((r) => !r.success);
+    const winRate = actualRuns > 0 ? successes.length / actualRuns : 0;
+
+    const avgResearch = actualRuns > 0
+      ? Math.round(results.reduce((s, r) => s + r.researchValue, 0) / actualRuns)
+      : 0;
+    const avgReturned = actualRuns > 0
+      ? Math.round(results.reduce((s, r) => s + r.returnedValue, 0) / actualRuns)
+      : 0;
+    const avgDays = actualRuns > 0
+      ? (results.reduce((s, r) => s + r.daysSurvived, 0) / actualRuns).toFixed(1)
+      : 0;
+
+    const avgFinalFuel = actualRuns > 0
+      ? Math.round(results.reduce((s, r) => s + r.finalFuel, 0) / actualRuns)
+      : 0;
+    const avgFinalFood = actualRuns > 0
+      ? Math.round(results.reduce((s, r) => s + r.finalFood, 0) / actualRuns)
+      : 0;
+    const avgFinalMorale = actualRuns > 0
+      ? Math.round(results.reduce((s, r) => s + r.finalMorale, 0) / actualRuns)
+      : 0;
+
+    const failReasons = {};
+    const resourceZeros = { fuel: 0, food: 0, morale: 0 };
+    failures.forEach((r) => {
+      const reason = r.failReason || "unknown";
+      failReasons[reason] = (failReasons[reason] || 0) + 1;
+      if (r.firstZeroResource) {
+        resourceZeros[r.firstZeroResource] = (resourceZeros[r.firstZeroResource] || 0) + 1;
+      }
+    });
+
+    const weatherCounts = { "晴朗": 0, "低温": 0, "暴风雪": 0, "极夜静风": 0 };
+    results.forEach((r) => {
+      Object.keys(r.weatherCounts).forEach((w) => {
+        weatherCounts[w] = (weatherCounts[w] || 0) + r.weatherCounts[w];
+      });
+    });
+
+    const reasonLabels = {
+      fuel: "⛽ 柴油耗尽",
+      food: "🍖 食物耗尽",
+      morale: "💪 士气归零",
+      resource: "关键资源耗尽",
+      emergency: "突发事件导致崩溃",
+      victory_condition: "胜利条件未达成",
+      unknown: "其他原因"
+    };
+
+    const sortedFailReasons = Object.entries(failReasons)
+      .sort((a, b) => b[1] - a[1])
+      .map(([key, count]) => ({
+        key,
+        label: reasonLabels[key] || key,
+        count,
+        pct: failures.length > 0 ? Math.round(count / failures.length * 100) : 0
+      }));
+
+    const sortedBottlenecks = Object.entries(resourceZeros)
+      .filter(([, v]) => v > 0)
+      .sort((a, b) => b[1] - a[1])
+      .map(([key, count]) => ({
+        key,
+        label: { fuel: "⛽ 柴油", food: "🍖 食物", morale: "💪 士气" }[key] || key,
+        count,
+        pct: actualRuns > 0 ? Math.round(count / actualRuns * 100) : 0,
+        avgRemaining: key === "fuel" ? avgFinalFuel : key === "food" ? avgFinalFood : avgFinalMorale
+      }));
+
+    const recommendations = generateRecommendations({
+      winRate,
+      avgResearch,
+      avgReturned,
+      avgDays,
+      mission,
+      sortedFailReasons,
+      sortedBottlenecks,
+      avgFinalFuel,
+      avgFinalFood,
+      avgFinalMorale,
+      weatherCounts,
+      totalDays: mission.days
+    });
+
+    let extremeWarning = null;
+    if (mission.days > 20 && actualRuns >= 50) {
+      extremeWarning = `超长关卡（${mission.days}天）模拟结果仅供参考，随机波动影响较大。建议缩小模拟范围或增加模拟次数。`;
+    }
+    if (winRate <= 0.01 && actualRuns >= 30) {
+      extremeWarning = extremeWarning
+        ? extremeWarning + ` 当前配置接近必败（胜率≤1%），请大幅调整资源或降低目标。`
+        : `当前配置接近必败（胜率≤1%），请大幅调整资源或降低目标。`;
+    }
+    if (winRate >= 0.99 && actualRuns >= 30) {
+      extremeWarning = extremeWarning
+        ? extremeWarning + ` 当前配置接近必胜（胜率≥99%），挑战性不足。`
+        : `当前配置接近必胜（胜率≥99%），挑战性不足。`;
+    }
+
+    const totalWeight = (mission.weatherWeight?.["晴朗"] || 0) + (mission.weatherWeight?.["低温"] || 0)
+      + (mission.weatherWeight?.["暴风雪"] || 0) + (mission.weatherWeight?.["极夜静风"] || 0);
+    if (totalWeight <= 0) {
+      extremeWarning = extremeWarning
+        ? extremeWarning + ` 所有天气权重为0，使用了默认天气分布。`
+        : `所有天气权重为0，使用了默认天气分布。`;
+    }
+
+    return {
+      totalRuns,
+      actualRuns,
+      winRate,
+      avgResearch,
+      avgReturned,
+      avgDays,
+      avgFinalFuel,
+      avgFinalFood,
+      avgFinalMorale,
+      sortedFailReasons,
+      sortedBottlenecks,
+      recommendations,
+      extremeWarning,
+      weatherCounts
+    };
+  }
+
+  function generateRecommendations(ctx) {
+    const recs = [];
+    const { winRate, avgResearch, avgReturned, mission, sortedFailReasons, sortedBottlenecks, avgFinalFuel, avgFinalFood, avgFinalMorale } = ctx;
+
+    if (winRate < 0.3) {
+      recs.push({
+        priority: "high",
+        text: `胜率仅 ${Math.round(winRate * 100)}%，关卡难度过高。建议增加初始资源（柴油/食物/士气）或降低科研目标。`
+      });
+    } else if (winRate > 0.85) {
+      recs.push({
+        priority: "mid",
+        text: `胜率高达 ${Math.round(winRate * 100)}%，关卡偏简单。可考虑减少初始资源或提高目标以增加挑战性。`
+      });
+    } else {
+      recs.push({
+        priority: "low",
+        text: `胜率 ${Math.round(winRate * 100)}%，处于合理的平衡区间（30%-85%）。`
+      });
+    }
+
+    if (mission.dataGoal && mission.dataGoal > 0) {
+      if (avgResearch < mission.dataGoal * 0.6) {
+        recs.push({
+          priority: "high",
+          text: `平均科研成果 ${avgResearch} 远低于目标 ${mission.dataGoal}。建议：增加初始实验电力分配、提高通信加成、减少暴风雪权重，或降低科研目标。`
+        });
+      } else if (avgResearch > mission.dataGoal * 1.5) {
+        recs.push({
+          priority: "low",
+          text: `平均科研成果 ${avgResearch} 高于目标 ${mission.dataGoal}，科研目标偏容易达成。`
+        });
+      }
+    }
+
+    if (mission.returnedValueGoal && mission.returnedValueGoal > 0) {
+      if (avgReturned < mission.returnedValueGoal * 0.5) {
+        recs.push({
+          priority: "high",
+          text: `平均返运价值 ${avgReturned} 远低于目标 ${mission.returnedValueGoal}。建议：增加通信/冷藏/供暖电力分配、降低恶劣天气权重、或降低返运目标。`
+        });
+      }
+    }
+
+    if (sortedBottlenecks.length > 0) {
+      const topBottle = sortedBottlenecks[0];
+      if (topBottle.pct >= 25) {
+        if (topBottle.key === "fuel") {
+          recs.push({
+            priority: "high",
+            text: `柴油是最大瓶颈（${topBottle.pct}% 的模拟中耗尽）。建议：增加初始柴油、减少暴风雪天气权重、或降低供暖需求。`
+          });
+        } else if (topBottle.key === "food") {
+          recs.push({
+            priority: "high",
+            text: `食物是最大瓶颈（${topBottle.pct}% 的模拟中耗尽）。建议：增加初始食物、启用食物储备加成、或提高食物储藏初始电力。`
+          });
+        } else if (topBottle.key === "morale") {
+          recs.push({
+            priority: "high",
+            text: `士气是最大瓶颈（${topBottle.pct}% 的模拟中归零）。建议：增加初始士气、启用通信士气奖励、减少暴风雪/低温权重、或降低供暖/通信天气需求。`
+          });
+        }
+      }
+    }
+
+    if (avgFinalFuel > 40 && winRate < 0.7) {
+      recs.push({
+        priority: "low",
+        text: `模拟结束时平均剩余柴油 ${avgFinalFuel}，资源偏充裕但胜率不高，问题可能出在士气或食物而非柴油。`
+      });
+    }
+
+    const emergencyChancePct = (mission.emergencyChance || EMERGENCY_CHANCE) * 100;
+    if (emergencyChancePct > 60 && winRate < 0.5) {
+      recs.push({
+        priority: "mid",
+        text: `突发事件概率 ${Math.round(emergencyChancePct)}% 偏高，结合低胜率，建议降至 30%-50% 区间。`
+      });
+    }
+
+    if (sortedFailReasons.some((r) => r.key === "victory_condition" && r.pct >= 30)) {
+      recs.push({
+        priority: "mid",
+        text: `相当部分失败来自胜利条件未达成。建议：检查最终资源最低要求是否过高，或科研/返运目标是否可达成。`
+      });
+    }
+
+    if (mission.minFuel && mission.minFuel > 0 && avgFinalFuel < mission.minFuel * 1.5) {
+      recs.push({
+        priority: "mid",
+        text: `最终柴油最低要求 ${mission.minFuel}，模拟平均仅剩余 ${avgFinalFuel}，建议增加初始柴油或降低要求。`
+      });
+    }
+    if (mission.minFood && mission.minFood > 0 && avgFinalFood < mission.minFood * 1.5) {
+      recs.push({
+        priority: "mid",
+        text: `最终食物最低要求 ${mission.minFood}，模拟平均仅剩余 ${avgFinalFood}，建议增加初始食物或降低要求。`
+      });
+    }
+    if (mission.minMorale && mission.minMorale > 0 && avgFinalMorale < mission.minMorale * 1.5) {
+      recs.push({
+        priority: "mid",
+        text: `最终士气最低要求 ${mission.minMorale}，模拟平均仅剩余 ${avgFinalMorale}，建议增加初始士气或降低要求。`
+      });
+    }
+
+    return recs;
+  }
+
+  function renderResults(analysis) {
+    simRunInfoEl.textContent = `${analysis.actualRuns}/${analysis.totalRuns} 次模拟`;
+
+    const wrPct = Math.round(analysis.winRate * 100);
+    simWinRateEl.textContent = wrPct + "%";
+    simWinRateBar.style.width = wrPct + "%";
+    if (wrPct >= 60) {
+      simWinRateHintEl.textContent = "✓ 难度适中偏易";
+      simWinRateHintEl.className = "sim-stat-hint good";
+    } else if (wrPct >= 30) {
+      simWinRateHintEl.textContent = "⚖ 难度较为平衡";
+      simWinRateHintEl.className = "sim-stat-hint warn";
+    } else {
+      simWinRateHintEl.textContent = "✗ 难度过高";
+      simWinRateHintEl.className = "sim-stat-hint bad";
+    }
+
+    simAvgResearchEl.textContent = analysis.avgResearch;
+    if (analysis.mission && analysis.mission.dataGoal && analysis.mission.dataGoal > 0) {
+      if (analysis.avgResearch >= analysis.mission.dataGoal) {
+        simResearchTargetEl.textContent = `目标 ${analysis.mission.dataGoal} ✓`;
+        simResearchTargetEl.className = "sim-stat-sub met";
+      } else {
+        simResearchTargetEl.textContent = `目标 ${analysis.mission.dataGoal} ✗`;
+        simResearchTargetEl.className = "sim-stat-sub unmet";
+      }
+    } else {
+      simResearchTargetEl.textContent = "";
+    }
+
+    simAvgReturnedEl.textContent = analysis.avgReturned;
+    if (analysis.mission && analysis.mission.returnedValueGoal && analysis.mission.returnedValueGoal > 0) {
+      if (analysis.avgReturned >= analysis.mission.returnedValueGoal) {
+        simReturnedTargetEl.textContent = `目标 ${analysis.mission.returnedValueGoal} ✓`;
+        simReturnedTargetEl.className = "sim-stat-sub met";
+      } else {
+        simReturnedTargetEl.textContent = `目标 ${analysis.mission.returnedValueGoal} ✗`;
+        simReturnedTargetEl.className = "sim-stat-sub unmet";
+      }
+    } else {
+      simReturnedTargetEl.textContent = "";
+    }
+
+    simAvgDaysEl.textContent = analysis.avgDays;
+    if (analysis.mission) {
+      simDaysTargetEl.textContent = `总天数 ${analysis.mission.days}`;
+    }
+
+    if (analysis.sortedFailReasons.length > 0) {
+      simFailureReasonsEl.innerHTML = analysis.sortedFailReasons.map((r) => `
+        <div class="sim-failure-item">
+          <span class="sim-failure-label">${r.label}</span>
+          <div class="sim-failure-bar"><div class="sim-failure-bar-fill" style="width:${r.pct}%"></div></div>
+          <span class="sim-failure-pct">${r.pct}%</span>
+        </div>
+      `).join("");
+    } else {
+      simFailureReasonsEl.innerHTML = '<span class="sim-empty-hint">🎉 没有失败数据，全部通关！</span>';
+    }
+
+    if (analysis.sortedBottlenecks.length > 0) {
+      simBottlenecksEl.innerHTML = analysis.sortedBottlenecks.map((b) => `
+        <div class="sim-bottleneck-item">
+          <span class="sim-bottleneck-label">${b.label}</span>
+          <div class="sim-bottleneck-bar"><div class="sim-bottleneck-bar-fill" style="width:${b.pct}%"></div></div>
+          <span class="sim-bottleneck-pct">${b.pct}%</span>
+        </div>
+      `).join("");
+    } else {
+      simBottlenecksEl.innerHTML = '<span class="sim-empty-hint">✨ 资源未出现明显瓶颈</span>';
+    }
+
+    if (analysis.recommendations.length > 0) {
+      simRecommendationsEl.innerHTML = analysis.recommendations.map((r) => `
+        <div class="sim-recommendation-item priority-${r.priority}">${r.text}</div>
+      `).join("");
+    } else {
+      simRecommendationsEl.innerHTML = '<span class="sim-empty-hint">暂无特殊建议</span>';
+    }
+
+    if (analysis.extremeWarning) {
+      simExtremeWarningEl.textContent = analysis.extremeWarning;
+      simExtremeWarningEl.classList.remove("hidden");
+    } else {
+      simExtremeWarningEl.classList.add("hidden");
+    }
+
+    simulationResultsEl.classList.remove("hidden");
+  }
+
+  return {
+    runBalanceSimulation,
+    renderResults
+  };
+
+})();
+
+function initSimulatorUI() {
+  editorSimulateBtn.addEventListener("click", () => {
+    simulationConfigEl.classList.toggle("hidden");
+    if (simulationConfigEl.classList.contains("hidden")) {
+      simulationResultsEl.classList.add("hidden");
+    }
+  });
+
+  simStartBtn.addEventListener("click", async () => {
+    const config = collectEditorConfig();
+    const validation = validateLevelConfig(config);
+    if (!validation.valid) {
+      showValidationResult(validation);
+      return;
+    }
+
+    const mission = editorConfigToMission(config, "sim_temp_" + Date.now());
+    const runCount = parseInt(simRunCountEl.value) || 100;
+
+    simRunning = true;
+    simCancelRequested = false;
+    simStartBtn.disabled = true;
+    simCancelBtn.classList.remove("hidden");
+    simProgressEl.classList.remove("hidden");
+    simulationResultsEl.classList.add("hidden");
+    editorSimulateBtn.disabled = true;
+
+    simProgressFill.style.width = "0%";
+    simProgressText.textContent = `0 / ${runCount}`;
+
+    const startTime = Date.now();
+
+    try {
+      const analysis = await BalanceSimulator.runBalanceSimulation(
+        mission,
+        runCount,
+        (done, total) => {
+          const pct = Math.round(done / total * 100);
+          simProgressFill.style.width = pct + "%";
+          simProgressText.textContent = `${done} / ${total}`;
+        },
+        () => simCancelRequested
+      );
+
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+      simProgressText.textContent = `${analysis.actualRuns} / ${analysis.totalRuns} (${elapsed}s)`;
+
+      BalanceSimulator.renderResults(analysis);
+    } catch (e) {
+      console.error("Simulation error:", e);
+      simProgressText.textContent = "模拟出错：" + e.message;
+    } finally {
+      simRunning = false;
+      simStartBtn.disabled = false;
+      simCancelBtn.classList.add("hidden");
+      editorSimulateBtn.disabled = false;
+    }
+  });
+
+  simCancelBtn.addEventListener("click", () => {
+    simCancelRequested = true;
+    simCancelBtn.disabled = true;
+    simProgressText.textContent = "正在停止...";
+  });
+}
+
+initSimulatorUI();
 
 init();

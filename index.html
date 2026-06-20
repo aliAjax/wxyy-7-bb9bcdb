@@ -244,7 +244,85 @@
         <button id="editorLoadDefaultBtn" type="button" class="editor-btn-secondary">📋 载入默认配置</button>
         <button id="editorCopySelectedBtn" type="button" class="editor-btn-secondary">📝 从选中关卡复制</button>
         <button id="editorDeleteBtn" type="button" class="editor-btn-danger hidden">🗑 删除当前关卡</button>
+        <button id="editorSimulateBtn" type="button" class="editor-btn-simulate">🎲 运行平衡性模拟</button>
         <button id="editorSaveBtn" type="button" class="editor-btn-primary">💾 保存为新关卡</button>
+      </div>
+
+      <div id="simulationConfig" class="simulation-config hidden">
+        <div class="sim-config-head">
+          <h4>⚙ 模拟参数</h4>
+          <span class="sim-config-hint">调整模拟次数（次数越多结果越准确，但耗时更长）</span>
+        </div>
+        <div class="sim-config-row">
+          <label>模拟次数：</label>
+          <select id="simRunCount">
+            <option value="50">快速（50次）</option>
+            <option value="100" selected>标准（100次）</option>
+            <option value="300">精细（300次）</option>
+            <option value="500">精确（500次）</option>
+          </select>
+          <button id="simStartBtn" type="button" class="sim-start-btn">▶ 开始模拟</button>
+          <button id="simCancelBtn" type="button" class="sim-cancel-btn hidden">■ 停止</button>
+        </div>
+        <div id="simProgress" class="sim-progress hidden">
+          <div class="sim-progress-bar"><div id="simProgressFill" class="sim-progress-fill"></div></div>
+          <span id="simProgressText" class="sim-progress-text">准备中...</span>
+        </div>
+      </div>
+
+      <div id="simulationResults" class="simulation-results hidden">
+        <div class="sim-results-head">
+          <h3>📊 平衡性模拟结果</h3>
+          <span id="simRunInfo" class="sim-run-info"></span>
+        </div>
+
+        <div class="sim-overview-grid">
+          <div class="sim-stat-card sim-winrate">
+            <span class="sim-stat-label">预计胜率</span>
+            <strong id="simWinRate">—</strong>
+            <div class="sim-stat-bar"><div id="simWinRateBar" class="sim-stat-bar-fill"></div></div>
+            <span id="simWinRateHint" class="sim-stat-hint"></span>
+          </div>
+          <div class="sim-stat-card sim-research">
+            <span class="sim-stat-label">平均科研成果</span>
+            <strong id="simAvgResearch">—</strong>
+            <span id="simResearchTarget" class="sim-stat-sub"></span>
+          </div>
+          <div class="sim-stat-card sim-returned">
+            <span class="sim-stat-label">平均返运价值</span>
+            <strong id="simAvgReturned">—</strong>
+            <span id="simReturnedTarget" class="sim-stat-sub"></span>
+          </div>
+          <div class="sim-stat-card sim-survival">
+            <span class="sim-stat-label">平均存活天数</span>
+            <strong id="simAvgDays">—</strong>
+            <span id="simDaysTarget" class="sim-stat-sub"></span>
+          </div>
+        </div>
+
+        <div class="sim-detail-grid">
+          <div class="sim-detail-card">
+            <h4>⚠ 常见失败原因</h4>
+            <div id="simFailureReasons" class="sim-failure-reasons">
+              <span class="sim-empty-hint">暂无失败数据</span>
+            </div>
+          </div>
+          <div class="sim-detail-card">
+            <h4>📉 资源瓶颈分析</h4>
+            <div id="simBottlenecks" class="sim-bottlenecks">
+              <span class="sim-empty-hint">暂无瓶颈数据</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="sim-detail-card sim-recommendations-card">
+          <h4>💡 推荐调整方向</h4>
+          <div id="simRecommendations" class="sim-recommendations">
+            <span class="sim-empty-hint">暂无推荐</span>
+          </div>
+        </div>
+
+        <div id="simExtremeWarning" class="sim-extreme-warning hidden"></div>
       </div>
 
       <div class="editor-section" id="editorSavedSection" style="margin-top:20px">
