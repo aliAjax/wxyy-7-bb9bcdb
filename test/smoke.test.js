@@ -245,20 +245,22 @@ async function runTests() {
 
   await runTest("点击结束今天按钮可触发一天结算", async function() {
     var dayBefore = await page.$eval("#day", function(el) { return el.textContent.trim(); });
-    var powerLeft = await page.$eval("#powerLeft", function(el) { return parseInt(el.textContent) || 0; });
 
-    if (powerLeft < 0) {
-      await page.evaluate(function() {
-        if (state && state.allocations) {
-          state.allocations.heat = 1;
-          state.allocations.comm = 1;
-          state.allocations.lab = 2;
-          state.allocations.food = 1;
-          renderAllocationValues();
+    await page.evaluate(function() {
+      if (state && state.allocations && state.weather) {
+        var availablePower = Math.max(0, Number(state.weather.power) || 0);
+        var allocations = { heat: 0, comm: 0, lab: 0, food: 0 };
+        var order = ["heat", "comm", "lab", "food"];
+        for (var i = 0; i < order.length && availablePower > 0; i++) {
+          allocations[order[i]] = 1;
+          availablePower--;
         }
-      });
-      await page.waitForTimeout(200);
-    }
+        state.allocations = allocations;
+        Math.random = function() { return 0.999; };
+        renderAllocationValues();
+      }
+    });
+    await page.waitForTimeout(200);
 
     var endDayBtn = await page.$("#endDayBtn");
     if (!endDayBtn) throw new Error("找不到结束今天按钮");
