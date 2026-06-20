@@ -21,6 +21,12 @@
           <div id="campaignChapter2" class="campaign-chapter-dot">2</div>
         </div>
         <span id="campaignChapterName" class="campaign-chapter-name"></span>
+        <div class="campaign-save-actions">
+          <button id="saveBtn" type="button" class="campaign-save-btn" title="保存进度">💾 保存</button>
+          <button id="loadBtn" type="button" class="campaign-save-btn" title="读取存档">📂 读档</button>
+          <button id="choicesBtn" type="button" class="campaign-save-btn" title="查看分支选择">📜 选择</button>
+          <button id="abandonBtn" type="button" class="campaign-save-btn abandon" title="放弃战役">✖ 放弃</button>
+        </div>
       </div>
     </header>
 
@@ -30,7 +36,10 @@
           <h2>任务选择台</h2>
           <p class="mission-desc">选择一项科考任务，不同任务拥有不同的初始资源、科研成果目标和结算方式。实验电力用于产出科研样本，<b>样本仅在成功返运后才计入最终科研成果</b>。通信、冷藏、恒温与最终资源决定返运成功率，请在样本面板设置返运优先级。</p>
         </div>
-        <button id="toggleEditorBtn" type="button" class="editor-toggle-btn">⚙ 关卡编辑器</button>
+        <div class="mission-desk-actions">
+          <button id="continueCampaignBtn" type="button" class="campaign-action-btn hidden">📂 继续战役</button>
+          <button id="toggleEditorBtn" type="button" class="editor-toggle-btn">⚙ 关卡编辑器</button>
+        </div>
       </div>
 
       <div class="mission-filter-bar">

@@ -2978,6 +2978,318 @@ h2 {
   position: relative;
 }
 
+.mission-desk-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.campaign-action-btn {
+  padding: 8px 16px;
+  border: 2px solid #4a7c84;
+  background: #e8f1f2;
+  color: #13272b;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  transition: all 0.15s;
+}
+
+.campaign-action-btn:hover {
+  background: #4a7c84;
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.campaign-save-actions {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.campaign-save-btn {
+  padding: 4px 10px;
+  border: 1px solid #4a7c84;
+  background: #f5f9fa;
+  color: #13272b;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.12s;
+}
+
+.campaign-save-btn:hover {
+  background: #4a7c84;
+  color: #fff;
+}
+
+.campaign-save-btn.abandon {
+  border-color: #c0392b;
+  color: #c0392b;
+  background: #fdecea;
+}
+
+.campaign-save-btn.abandon:hover {
+  background: #c0392b;
+  color: #fff;
+}
+
+.save-toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 12px 20px;
+  background: #13272b;
+  color: #fff;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  z-index: 10000;
+  opacity: 0;
+  transform: translateY(-20px);
+  transition: all 0.3s ease;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.save-toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.save-menu-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.save-menu-mask {
+  position: absolute;
+  inset: 0;
+  background: rgba(19, 39, 43, 0.6);
+  backdrop-filter: blur(4px);
+}
+
+.save-menu-card {
+  position: relative;
+  background: #fff;
+  border-radius: 12px;
+  padding: 0;
+  width: 90%;
+  max-width: 500px;
+  max-height: 80vh;
+  overflow: hidden;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+  animation: slideDown 0.25s ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.save-menu-head-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, #4a7c84 0%, #3e5f65 100%);
+  color: #fff;
+}
+
+.save-menu-head-bar h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.save-menu-close {
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 24px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+
+.save-menu-close:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.save-menu-item {
+  padding: 16px 20px;
+  border-bottom: 1px solid #e0eaeb;
+  transition: background 0.12s;
+}
+
+.save-menu-item:hover {
+  background: #f5f9fa;
+}
+
+.save-menu-item:last-child {
+  border-bottom: none;
+}
+
+.save-menu-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.save-menu-head strong {
+  font-size: 15px;
+  color: #13272b;
+}
+
+.save-menu-chapter {
+  font-size: 12px;
+  color: #63868c;
+  font-weight: 500;
+}
+
+.save-menu-meta {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  color: #4a6a70;
+  margin-bottom: 8px;
+}
+
+.save-menu-meta span {
+  background: #e8f1f2;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.save-menu-date {
+  font-size: 11px;
+  color: #8fa9ae;
+  margin-bottom: 10px;
+}
+
+.save-menu-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.save-menu-btn {
+  padding: 6px 14px;
+  border: 1px solid #4a7c84;
+  background: #fff;
+  color: #13272b;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.12s;
+}
+
+.save-menu-btn:hover {
+  background: #4a7c84;
+  color: #fff;
+}
+
+.save-menu-btn.delete {
+  border-color: #c0392b;
+  color: #c0392b;
+}
+
+.save-menu-btn.delete:hover {
+  background: #c0392b;
+  color: #fff;
+}
+
+.choice-summary-item {
+  display: flex;
+  gap: 12px;
+  padding: 14px 20px;
+  border-bottom: 1px solid #e0eaeb;
+  align-items: flex-start;
+}
+
+.choice-summary-item:last-child {
+  border-bottom: none;
+}
+
+.choice-summary-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #e8f1f2;
+  border-radius: 8px;
+}
+
+.choice-summary-body {
+  flex: 1;
+}
+
+.choice-summary-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #13272b;
+  margin-bottom: 4px;
+}
+
+.choice-summary-desc {
+  font-size: 12px;
+  color: #63868c;
+  line-height: 1.5;
+}
+
+@media (max-width: 768px) {
+  .campaign-save-actions {
+    margin-left: 0;
+    margin-top: 8px;
+    justify-content: center;
+  }
+
+  .campaign-save-btn {
+    padding: 6px 10px;
+    font-size: 11px;
+  }
+
+  .mission-desk-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .campaign-action-btn {
+    width: 100%;
+  }
+
+  .save-menu-meta {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .choice-summary-item {
+    padding: 12px 16px;
+  }
+}
+
 .editor-emergency-card:hover {
   border-color: #357a90;
   box-shadow: 0 4px 12px rgba(53, 122, 144, 0.12);

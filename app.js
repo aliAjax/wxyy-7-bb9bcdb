@@ -155,6 +155,11 @@ const TUTORIAL_KEY = "polar_station_tutorial_done";
 const CUSTOM_LEVELS_KEY = "polar_station_custom_levels";
 const CUSTOM_LEVEL_ID_PREFIX = "custom_";
 
+const CAMPAIGN_SAVE_KEY = "polar_station_campaign_saves";
+const CAMPAIGN_SAVE_VERSION = 1;
+const CAMPAIGN_SAVE_LIMIT = 5;
+const AUTOSAVE_INTERVAL = 30000;
+
 const filterState = {
   tags: [],
   days: "all",
@@ -1433,9 +1438,596 @@ function createCampaignState() {
     choices: {},
     chapterOutcomes: [],
     triggeredBranches: [],
+    completedEvents: [],
     labEfficiencyBonus: 0,
     weatherWeightOverride: null
   };
+}
+
+function serializeCampaignState() {
+  if (!campaignState || !campaignState.active) return null;
+  return {
+    active: campaignState.active,
+    chapterIndex: campaignState.chapterIndex,
+    choices: { ...campaignState.choices },
+    chapterOutcomes: JSON.parse(JSON.stringify(campaignState.chapterOutcomes || [])),
+    triggeredBranches: [...(campaignState.triggeredBranches || [])],
+    completedEvents: [...(campaignState.completedEvents || [])],
+    labEfficiencyBonus: campaignState.labEfficiencyBonus || 0,
+    weatherWeightOverride: campaignState.weatherWeightOverride ? { ...campaignState.weatherWeightOverride } : null
+  };
+}
+
+function deserializeCampaignState(saved) {
+  if (!saved) return null;
+  return {
+    active: saved.active !== false,
+    chapterIndex: saved.chapterIndex || 0,
+    choices: saved.choices || {},
+    chapterOutcomes: saved.chapterOutcomes || [],
+    triggeredBranches: saved.triggeredBranches || [],
+    completedEvents: saved.completedEvents || [],
+    labEfficiencyBonus: saved.labEfficiencyBonus || 0,
+    weatherWeightOverride: saved.weatherWeightOverride || null
+  };
+}
+
+function serializeGameState() {
+  if (!state || !state.started) return null;
+  return {
+    started: state.started,
+    mission: state.mission ? {
+      id: state.mission.id,
+      name: state.mission.name,
+      tag: state.mission.tag,
+      desc: state.mission.desc,
+      color: state.mission.color,
+      days: state.mission.days,
+      initial: { ...state.mission.initial },
+      allocations: { ...state.mission.allocations },
+      dataGoal: state.mission.dataGoal,
+      dataPerLab: state.mission.dataPerLab || 0,
+      defaultCommChain: state.mission.defaultCommChain,
+      weatherWeight: state.mission.weatherWeight ? { ...state.mission.weatherWeight } : null,
+      intro: state.mission.intro,
+      commBonus: state.mission.commBonus,
+      commMoraleBonus: state.mission.commMoraleBonus,
+      foodReserve: state.mission.foodReserve,
+      emergencyChance: state.mission.emergencyChance,
+      minFuel: state.mission.minFuel,
+      minMorale: state.mission.minMorale,
+      minFood: state.mission.minFood,
+      isCustom: state.mission.isCustom
+    } : null,
+    selectedMissionId: state.selectedMissionId,
+    day: state.day,
+    fuel: state.fuel,
+    morale: state.morale,
+    food: state.food,
+    data: state.data,
+    weather: state.weather ? { ...state.weather } : null,
+    allocations: { ...state.allocations },
+    nextDayEffects: state.nextDayEffects ? { ...state.nextDayEffects } : null,
+    crew: JSON.parse(JSON.stringify(state.crew || [])),
+    equipment: JSON.parse(JSON.stringify(state.equipment || {})),
+    samples: JSON.parse(JSON.stringify(state.samples || {})),
+    sampleValueLostToday: state.sampleValueLostToday ? JSON.parse(JSON.stringify(state.sampleValueLostToday)) : {},
+    commChains: JSON.parse(JSON.stringify(state.commChains || {})),
+    activeCommChainId: state.activeCommChainId,
+    lastCommAdvancedDay: state.lastCommAdvancedDay || 0,
+    log: [...(state.log || [])]
+  };
+}
+
+function deserializeGameState(saved) {
+  if (!saved) return null;
+  const mission = saved.mission;
+  if (mission && !mission.successText) {
+    mission.successText = function(s) {
+      const ret = s.returnedValue !== undefined ? s.returnedValue : s.sampleValue;
+      const disc = s.discoveredValue !== undefined ? s.discoveredValue : s.sampleValue;
+      return `任务完成！现场发现样本价值${disc}，成功返运样本价值${ret}。科研成果：${s.data}，最终评分：${s.score}。`;
+    };
+    mission.failText = function(s) {
+      const disc = s.discoveredValue !== undefined ? s.discoveredValue : s.sampleValue;
+      return `任务失败，某项关键资源归零。现场发现样本价值${disc}，未及组织返运全部遗失。仅获得数据 ${s.data}，最终评分：${s.score}。`;
+    };
+  }
+  return {
+    started: saved.started,
+    mission: mission,
+    selectedMissionId: saved.selectedMissionId,
+    day: saved.day,
+    fuel: saved.fuel,
+    morale: saved.morale,
+    food: saved.food,
+    data: saved.data,
+    weather: saved.weather,
+    allocations: saved.allocations,
+    nextDayEffects: saved.nextDayEffects,
+    crew: saved.crew,
+    equipment: saved.equipment,
+    samples: saved.samples,
+    sampleValueLostToday: saved.sampleValueLostToday || {},
+    commChains: saved.commChains,
+    activeCommChainId: saved.activeCommChainId,
+    lastCommAdvancedDay: saved.lastCommAdvancedDay || 0,
+    log: saved.log || []
+  };
+}
+
+function serializeUIState() {
+  return {
+    emergencyPending: emergencyPending ? JSON.parse(JSON.stringify(emergencyPending)) : null,
+    branchEventPending: branchEventPending ? JSON.parse(JSON.stringify(branchEventPending)) : null,
+    tutorialActive: tutorialActive || false,
+    tutorialCurrentStep: tutorialCurrentStep || 0,
+    activeOverlay: getActiveOverlay(),
+    timestamp: Date.now()
+  };
+}
+
+function getActiveOverlay() {
+  if (!emergencyOverlay.classList.contains("hidden")) return "emergency";
+  if (!branchEventOverlay.classList.contains("hidden")) return "branchEvent";
+  if (!chapterIntroOverlay.classList.contains("hidden")) return "chapterIntro";
+  if (!chapterSettleOverlay.classList.contains("hidden")) return "chapterSettle";
+  if (!campaignEndingOverlay.classList.contains("hidden")) return "campaignEnding";
+  if (!tutorialOverlay.classList.contains("hidden")) return "tutorial";
+  return null;
+}
+
+function createCampaignSave(slotName) {
+  const campaignSerialized = serializeCampaignState();
+  const gameSerialized = serializeGameState();
+  const uiSerialized = serializeUIState();
+  if (!campaignSerialized || !gameSerialized) return null;
+  const chapter = getCampaignChapter();
+  return {
+    version: CAMPAIGN_SAVE_VERSION,
+    id: "campaign_save_" + Date.now(),
+    slotName: slotName || `第${campaignSerialized.chapterIndex + 1}章 第${gameSerialized.day}天`,
+    timestamp: Date.now(),
+    lastPlayed: Date.now(),
+    chapterIndex: campaignSerialized.chapterIndex,
+    chapterName: chapter ? chapter.name : "",
+    day: gameSerialized.day,
+    totalDays: campaignState.chapterOutcomes.reduce((sum, o) => sum + 7, 0) + gameSerialized.day,
+    fuel: gameSerialized.fuel,
+    morale: gameSerialized.morale,
+    food: gameSerialized.food,
+    data: gameSerialized.data,
+    choicesCount: Object.keys(campaignSerialized.choices).length,
+    campaignState: campaignSerialized,
+    gameState: gameSerialized,
+    uiState: uiSerialized,
+    extra: {}
+  };
+}
+
+function loadCampaignSaves() {
+  try {
+    const raw = localStorage.getItem(CAMPAIGN_SAVE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map(save => migrateCampaignSave(save)).filter(Boolean);
+  } catch (e) {
+    console.error("Failed to load campaign saves:", e);
+    return [];
+  }
+}
+
+function saveCampaignSaves(saves) {
+  try {
+    localStorage.setItem(CAMPAIGN_SAVE_KEY, JSON.stringify(saves));
+    return true;
+  } catch (e) {
+    console.error("Failed to save campaign saves:", e);
+    return false;
+  }
+}
+
+function migrateCampaignSave(save) {
+  if (!save || !save.version) return null;
+  try {
+    if (save.version < CAMPAIGN_SAVE_VERSION) {
+      if (save.version === 1 && CAMPAIGN_SAVE_VERSION >= 1) {
+        if (!save.campaignState.completedEvents) {
+          save.campaignState.completedEvents = save.campaignState.triggeredBranches || [];
+        }
+        if (!save.gameState.sampleValueLostToday) {
+          save.gameState.sampleValueLostToday = {};
+        }
+        if (!save.uiState) {
+          save.uiState = {
+            emergencyPending: null,
+            branchEventPending: null,
+            tutorialActive: false,
+            tutorialCurrentStep: 0,
+            activeOverlay: null,
+            timestamp: save.timestamp
+          };
+        }
+        if (!save.extra) save.extra = {};
+        save.version = CAMPAIGN_SAVE_VERSION;
+      }
+    }
+    return save;
+  } catch (e) {
+    console.error("Failed to migrate campaign save:", e);
+    return null;
+  }
+}
+
+function writeCampaignSave(slotName) {
+  if (!campaignState || !campaignState.active || !state || !state.started) {
+    return { success: false, error: "没有可保存的战役进度" };
+  }
+  const newSave = createCampaignSave(slotName);
+  if (!newSave) {
+    return { success: false, error: "存档数据创建失败" };
+  }
+  const saves = loadCampaignSaves();
+  saves.unshift(newSave);
+  if (saves.length > CAMPAIGN_SAVE_LIMIT) {
+    saves.length = CAMPAIGN_SAVE_LIMIT;
+  }
+  const success = saveCampaignSaves(saves);
+  return {
+    success,
+    error: success ? null : "保存失败，请检查浏览器存储权限",
+    save: newSave
+  };
+}
+
+function readCampaignSave(saveId) {
+  const saves = loadCampaignSaves();
+  return saves.find(s => s.id === saveId) || null;
+}
+
+function deleteCampaignSave(saveId) {
+  const saves = loadCampaignSaves();
+  const filtered = saves.filter(s => s.id !== saveId);
+  return saveCampaignSaves(filtered);
+}
+
+function hasCampaignSave() {
+  const saves = loadCampaignSaves();
+  return saves.length > 0;
+}
+
+function getLatestCampaignSave() {
+  const saves = loadCampaignSaves();
+  if (saves.length === 0) return null;
+  return saves.sort((a, b) => b.lastPlayed - a.lastPlayed)[0];
+}
+
+function restoreCampaignSave(save) {
+  if (!save) return { success: false, error: "存档不存在" };
+  try {
+    const migrated = migrateCampaignSave(save);
+    if (!migrated) return { success: false, error: "存档版本不兼容，无法恢复" };
+    campaignState = deserializeCampaignState(migrated.campaignState);
+    state = deserializeGameState(migrated.gameState);
+    if (!campaignState || !state) {
+      return { success: false, error: "存档数据损坏，无法恢复" };
+    }
+    emergencyPending = migrated.uiState?.emergencyPending || null;
+    branchEventPending = migrated.uiState?.branchEventPending || null;
+    tutorialActive = migrated.uiState?.tutorialActive || false;
+    tutorialCurrentStep = migrated.uiState?.tutorialCurrentStep || 0;
+    const saves = loadCampaignSaves();
+    const updated = saves.map(s => {
+      if (s.id === migrated.id) {
+        return { ...s, lastPlayed: Date.now() };
+      }
+      return s;
+    });
+    saveCampaignSaves(updated);
+    return { success: true, save: migrated };
+  } catch (e) {
+    console.error("Failed to restore campaign save:", e);
+    return { success: false, error: "存档恢复失败：" + e.message };
+  }
+}
+
+function applyRestoredCampaignUI(save) {
+  hideAllOverlays();
+  missionDeskEl.classList.add("hidden");
+  levelEditorPanel.classList.add("hidden");
+  crewPanelEl.classList.remove("hidden");
+  workshopPanelEl.classList.remove("hidden");
+  samplesPanelEl.classList.remove("hidden");
+  commPanelEl.classList.remove("hidden");
+  controlsPanelEl.classList.remove("hidden");
+  dayPreviewPanelEl.classList.remove("hidden");
+  campaignProgressEl.classList.remove("hidden");
+  const uiState = save?.uiState;
+  if (uiState) {
+    if (uiState.activeOverlay === "emergency" && emergencyPending) {
+      showEmergencyEvent(emergencyPending);
+    } else if (uiState.activeOverlay === "branchEvent" && branchEventPending) {
+      showBranchEvent(branchEventPending);
+    } else if (uiState.tutorialActive) {
+      tutorialOverlay.classList.remove("hidden");
+      showTutorialStep(uiState.tutorialCurrentStep);
+    }
+  }
+  if (emergencyPending && emergencyOverlay.classList.contains("hidden")) {
+    showEmergencyEvent(emergencyPending);
+  } else if (branchEventPending && branchEventOverlay.classList.contains("hidden")) {
+    showBranchEvent(branchEventPending);
+  }
+  renderCampaignProgress();
+  render();
+  addLog("📂 已从存档恢复战役进度。");
+}
+
+function abandonCampaign() {
+  if (!confirm("确定要放弃当前战役吗？所有未保存的进度将丢失，已有的存档不会被删除。")) {
+    return false;
+  }
+  hideAllOverlays();
+  emergencyPending = null;
+  branchEventPending = null;
+  tutorialActive = false;
+  campaignState = null;
+  state = freshState();
+  missionDeskEl.classList.remove("hidden");
+  levelEditorPanel.classList.add("hidden");
+  crewPanelEl.classList.add("hidden");
+  workshopPanelEl.classList.add("hidden");
+  samplesPanelEl.classList.add("hidden");
+  commPanelEl.classList.add("hidden");
+  controlsPanelEl.classList.add("hidden");
+  dayPreviewPanelEl.classList.add("hidden");
+  campaignProgressEl.classList.add("hidden");
+  renderMissionCards();
+  startBtn.disabled = true;
+  render();
+  addLog("已放弃当前战役，返回任务选择台。");
+  return true;
+}
+
+let autosaveTimer = null;
+function startAutosave() {
+  stopAutosave();
+  autosaveTimer = setInterval(() => {
+    if (campaignState && campaignState.active && state && state.started) {
+      const result = writeCampaignSave("自动存档");
+      if (result.success) {
+        showSaveToast("✅ 已自动保存");
+      }
+    }
+  }, AUTOSAVE_INTERVAL);
+}
+
+function stopAutosave() {
+  if (autosaveTimer) {
+    clearInterval(autosaveTimer);
+    autosaveTimer = null;
+  }
+}
+
+function manualSave() {
+  if (!campaignState || !campaignState.active) {
+    showSaveToast("❌ 当前没有进行中的战役");
+    return;
+  }
+  const chapter = getCampaignChapter();
+  let slotName;
+  try {
+    slotName = prompt("为存档命名：", `${chapter ? chapter.name : "战役"} - 第${state.day}天`);
+  } catch (e) {
+    slotName = `${chapter ? chapter.name : "战役"} - 第${state.day}天`;
+  }
+  if (slotName === null) return;
+  const result = writeCampaignSave(slotName || "手动存档");
+  if (result.success) {
+    showSaveToast("✅ 存档成功");
+  } else {
+    showSaveToast("❌ " + (result.error || "存档失败"));
+  }
+}
+
+let saveToastTimer = null;
+function showSaveToast(message) {
+  let toast = document.getElementById("saveToast");
+  if (!toast) {
+    toast = document.createElement("div");
+    toast.id = "saveToast";
+    toast.className = "save-toast";
+    document.body.appendChild(toast);
+  }
+  toast.textContent = message;
+  toast.classList.add("show");
+  if (saveToastTimer) clearTimeout(saveToastTimer);
+  saveToastTimer = setTimeout(() => {
+    toast.classList.remove("show");
+  }, 2000);
+}
+
+function loadLatestCampaignSave() {
+  const latest = getLatestCampaignSave();
+  if (!latest) {
+    showSaveToast("❌ 没有找到存档");
+    return;
+  }
+  loadSpecificCampaignSave(latest.id);
+}
+
+function loadSpecificCampaignSave(saveId) {
+  const save = readCampaignSave(saveId);
+  if (!save) {
+    showSaveToast("❌ 存档不存在");
+    return;
+  }
+  if (!confirm(`确定要读取存档「${save.slotName}」吗？当前未保存的进度将丢失。`)) {
+    return;
+  }
+  const result = restoreCampaignSave(save);
+  if (result.success) {
+    applyRestoredCampaignUI(save);
+    showSaveToast("✅ 读档成功");
+  } else {
+    showSaveToast("❌ " + (result.error || "读档失败"));
+  }
+}
+
+function showLoadSaveMenu() {
+  const saves = loadCampaignSaves();
+  if (saves.length === 0) {
+    alert("暂无存档");
+    return;
+  }
+  let html = "<div style='max-height:400px;overflow-y:auto'>";
+  saves.forEach((save, idx) => {
+    const d = new Date(save.lastPlayed);
+    const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    html += `
+      <div class="save-menu-item" data-save-id="${save.id}">
+        <div class="save-menu-head">
+          <strong>${save.slotName}</strong>
+          <span class="save-menu-chapter">${save.chapterName || `第${save.chapterIndex + 1}章`} · 第${save.day}天</span>
+        </div>
+        <div class="save-menu-meta">
+          <span>⛽${save.fuel}</span>
+          <span>💪${save.morale}</span>
+          <span>🍖${save.food}</span>
+          <span>📊${save.data}</span>
+          <span>选择×${save.choicesCount}</span>
+        </div>
+        <div class="save-menu-date">${dateStr}</div>
+        <div class="save-menu-actions">
+          <button type="button" class="save-menu-btn load" data-action="load">读取</button>
+          <button type="button" class="save-menu-btn delete" data-action="delete">删除</button>
+        </div>
+      </div>
+    `;
+  });
+  html += "</div>";
+  const overlay = document.createElement("div");
+  overlay.id = "loadSaveOverlay";
+  overlay.className = "save-menu-overlay";
+  overlay.innerHTML = `
+    <div class="save-menu-mask"></div>
+    <div class="save-menu-card">
+      <div class="save-menu-head-bar">
+        <h3>📂 战役存档</h3>
+        <button type="button" class="save-menu-close" id="saveMenuClose">×</button>
+      </div>
+      ${html}
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  overlay.querySelector("#saveMenuClose").addEventListener("click", () => overlay.remove());
+  overlay.querySelector(".save-menu-mask").addEventListener("click", () => overlay.remove());
+  overlay.querySelectorAll(".save-menu-item").forEach(item => {
+    const saveId = item.dataset.saveId;
+    item.querySelector('[data-action="load"]').addEventListener("click", (e) => {
+      e.stopPropagation();
+      overlay.remove();
+      loadSpecificCampaignSave(saveId);
+    });
+    item.querySelector('[data-action="delete"]').addEventListener("click", (e) => {
+      e.stopPropagation();
+      const save = readCampaignSave(saveId);
+      if (confirm(`确定要删除存档「${save?.slotName || saveId}」吗？此操作不可撤销。`)) {
+        deleteCampaignSave(saveId);
+        overlay.remove();
+        showSaveToast("✅ 存档已删除");
+      }
+    });
+  });
+}
+
+function getCampaignChoicesSummary() {
+  if (!campaignState || !campaignState.active) return [];
+  const choiceLabels = {
+    "ch1_anomaly": {
+      "study_deep": { label: "深入研究异常", icon: "🔬", desc: "调配更多实验电力和通信带宽，全力解析异常数据" },
+      "secure_store": { label: "封存样本优先生存", icon: "🛡️", desc: "将异常样本妥善封存，集中精力维持站内运转" }
+    },
+    "ch1_signal": {
+      "investigate": { label: "冒着暴风雪搜救", icon: "🆘", desc: "组织小队携带通讯设备前往信号源搜救" },
+      "ignore": { label: "记录坐标等待", icon: "⏳", desc: "将信号坐标记录在案，待暴风雪过后再计划行动" }
+    },
+    "ch2_contact": {
+      "explore": { label: "部署钻探深入", icon: "⛏️", desc: "动用全部资源尝试钻探至信号源" },
+      "monitor": { label: "远程监测积累", icon: "📡", desc: "利用通信和实验系统持续监测并记录信号变化" }
+    },
+    "ch2_evacuate": {
+      "stay": { label: "留下完成实验", icon: "🔬", desc: "赌冰裂不会发生，坚持完成最后的科研目标" },
+      "evacuate": { label: "立即撤离保全", icon: "🚁", desc: "安全第一，打包所有可携带的样本和数据撤离" }
+    }
+  };
+  const summary = [];
+  Object.keys(campaignState.choices).forEach(eventId => {
+    const choiceId = campaignState.choices[eventId];
+    const labels = choiceLabels[eventId] || {};
+    const choice = labels[choiceId] || { label: choiceId, icon: "📜", desc: "已做出选择" };
+    summary.push({
+      eventId,
+      choiceId,
+      label: choice.label,
+      icon: choice.icon,
+      desc: choice.desc
+    });
+  });
+  return summary;
+}
+
+function showCampaignChoices() {
+  const choices = getCampaignChoicesSummary();
+  if (choices.length === 0) {
+    alert("当前战役尚未做出任何分支选择。");
+    return;
+  }
+  let html = "<div style='max-height:500px;overflow-y:auto'>";
+  choices.forEach(c => {
+    html += `
+      <div class="choice-summary-item">
+        <div class="choice-summary-icon">${c.icon}</div>
+        <div class="choice-summary-body">
+          <div class="choice-summary-label">${c.label}</div>
+          <div class="choice-summary-desc">${c.desc}</div>
+        </div>
+      </div>
+    `;
+  });
+  html += "</div>";
+  const overlay = document.createElement("div");
+  overlay.id = "choicesOverlay";
+  overlay.className = "save-menu-overlay";
+  overlay.innerHTML = `
+    <div class="save-menu-mask"></div>
+    <div class="save-menu-card">
+      <div class="save-menu-head-bar">
+        <h3>📜 战役分支选择记录</h3>
+        <button type="button" class="save-menu-close" id="choicesMenuClose">×</button>
+      </div>
+      ${html}
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  overlay.querySelector("#choicesMenuClose").addEventListener("click", () => overlay.remove());
+  overlay.querySelector(".save-menu-mask").addEventListener("click", () => overlay.remove());
+}
+
+function markCampaignEventCompleted(eventId) {
+  if (!campaignState || !campaignState.active) return;
+  if (!campaignState.completedEvents) {
+    campaignState.completedEvents = [];
+  }
+  if (!campaignState.completedEvents.includes(eventId)) {
+    campaignState.completedEvents.push(eventId);
+  }
+}
+
+function isCampaignEventCompleted(eventId) {
+  if (!campaignState || !campaignState.active) return false;
+  return campaignState.completedEvents?.includes(eventId) || false;
 }
 
 function getCampaignChapter() {
@@ -1467,6 +2059,59 @@ function init() {
       closeArchiveDetail();
     }
   });
+
+  const continueCampaignBtn = document.getElementById("continueCampaignBtn");
+  const saveBtn = document.getElementById("saveBtn");
+  const loadBtn = document.getElementById("loadBtn");
+  const choicesBtn = document.getElementById("choicesBtn");
+  const abandonBtn = document.getElementById("abandonBtn");
+
+  if (continueCampaignBtn) {
+    continueCampaignBtn.addEventListener("click", showLoadSaveMenu);
+  }
+  if (saveBtn) {
+    saveBtn.addEventListener("click", manualSave);
+  }
+  if (loadBtn) {
+    loadBtn.addEventListener("click", showLoadSaveMenu);
+  }
+  if (choicesBtn) {
+    choicesBtn.addEventListener("click", showCampaignChoices);
+  }
+  if (abandonBtn) {
+    abandonBtn.addEventListener("click", () => {
+      if (abandonCampaign()) {
+        stopAutosave();
+      }
+    });
+  }
+
+  if (hasCampaignSave() && continueCampaignBtn) {
+    continueCampaignBtn.classList.remove("hidden");
+  }
+
+  window.addEventListener("beforeunload", () => {
+    if (campaignState && campaignState.active && state && state.started) {
+      const saves = loadCampaignSaves();
+      const existingAuto = saves.findIndex(s => s.slotName === "退出前自动存档");
+      if (existingAuto > -1) {
+        saves.splice(existingAuto, 1);
+      }
+      const newSave = createCampaignSave("退出前自动存档");
+      if (newSave) {
+        saves.unshift(newSave);
+        if (saves.length > CAMPAIGN_SAVE_LIMIT) {
+          saves.length = CAMPAIGN_SAVE_LIMIT;
+        }
+        try {
+          localStorage.setItem(CAMPAIGN_SAVE_KEY, JSON.stringify(saves));
+        } catch (e) {
+          console.error("Failed to autosave on unload:", e);
+        }
+      }
+    }
+  });
+
   initTutorialEvents();
   initEditorEvents();
   initEmergencyEditorEvents();
@@ -1862,6 +2507,7 @@ function startCampaign() {
   tutorialActive = false;
   campaignState = createCampaignState();
   missionDeskEl.classList.add("hidden");
+  startAutosave();
   showChapterIntro(0);
 }
 
@@ -2621,7 +3267,7 @@ function endDay() {
   if (campaignState && campaignState.active) {
     const chapter = getCampaignChapter();
     if (chapter && chapter.branchEvents) {
-      const branch = chapter.branchEvents.find((b) => b.day === state.day && !campaignState.triggeredBranches.includes(b.id));
+      const branch = chapter.branchEvents.find((b) => b.day === state.day && !isCampaignEventCompleted(b.id) && !campaignState.triggeredBranches.includes(b.id));
       if (branch) {
         showBranchEvent(branch);
         render();
@@ -2765,6 +3411,9 @@ function randomEvent() {
 }
 
 function showBranchEvent(event) {
+  if (isCampaignEventCompleted(event.id)) {
+    return;
+  }
   branchEventPending = event;
   branchEventIcon.textContent = event.icon;
   branchEventTitle.textContent = event.name;
@@ -2796,6 +3445,7 @@ function handleBranchChoice(idx) {
 
   campaignState.choices[event.id] = opt.id;
   campaignState.triggeredBranches.push(event.id);
+  markCampaignEventCompleted(event.id);
 
   if (opt.routeTag === "research") {
     campaignState.labEfficiencyBonus = 0.2;
@@ -2941,8 +3591,12 @@ function finishCampaignChapter(success) {
     commChainsComplete: chainsComplete,
     score: finalScore,
     ending: success ? `章节通过（返运${returnedValue}，科研成果${finalResearchValue}）` : `章节失败（发现${discoveredValue}，未能返运）`,
-    crew: JSON.parse(JSON.stringify(state.crew))
+    crew: JSON.parse(JSON.stringify(state.crew)),
+    campaignChoices: { ...campaignState.choices },
+    campaignChapterIndex: campaignState.chapterIndex
   });
+
+  writeCampaignSave(`${chapter.name} 结算`);
 
   if (campaignState.chapterIndex >= campaignChapters.length - 1) {
     showCampaignEnding(success, allObjectivesMet, outcome);
@@ -3028,6 +3682,7 @@ function showChapterSettlement(chapter, success, allObjectivesMet, objResults, o
 }
 
 function showCampaignEnding(lastChapterSuccess, allObjectivesMet, lastOutcome) {
+  stopAutosave();
   const totalDiscovered = campaignState.chapterOutcomes.reduce((sum, o) => sum + (o.sampleDiscoveredValue || o.sampleValue || 0), 0);
   const totalReturned = campaignState.chapterOutcomes.reduce((sum, o) => sum + (o.sampleReturnedValue || (o.success ? (o.sampleValue || 0) : 0)), 0);
   const totalScore = campaignState.chapterOutcomes.reduce((sum, o) => {
@@ -5925,7 +6580,7 @@ function computeDayPreview() {
   if (campaignState && campaignState.active) {
     const chapter = getCampaignChapter();
     if (chapter && chapter.branchEvents) {
-      const branch = chapter.branchEvents.find((b) => b.day === state.day && !campaignState.triggeredBranches.includes(b.id));
+      const branch = chapter.branchEvents.find((b) => b.day === state.day && !isCampaignEventCompleted(b.id) && !campaignState.triggeredBranches.includes(b.id));
       if (branch) {
         uncertainties.push(`今日存在剧情分支「${branch.name}」，选择将影响后续走向`);
       }
