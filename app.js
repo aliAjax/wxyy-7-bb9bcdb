@@ -156,7 +156,7 @@ const CUSTOM_LEVELS_KEY = "polar_station_custom_levels";
 const CUSTOM_LEVEL_ID_PREFIX = "custom_";
 
 const CAMPAIGN_SAVE_KEY = "polar_station_campaign_saves";
-const CAMPAIGN_SAVE_VERSION = 1;
+const CAMPAIGN_SAVE_VERSION = 2;
 const CAMPAIGN_SAVE_LIMIT = 5;
 const AUTOSAVE_INTERVAL = 30000;
 
@@ -1058,6 +1058,9 @@ let emergencyPending = null;
 
 let campaignState = null;
 let branchEventPending = null;
+let currentChapterIntroIndex = null;
+let currentSettleData = null;
+let currentEndingData = null;
 
 const tutorialSteps = [
   {
@@ -1440,131 +1443,124 @@ function createCampaignState() {
     triggeredBranches: [],
     completedEvents: [],
     labEfficiencyBonus: 0,
-    weatherWeightOverride: null
+    weatherWeightOverride: null,
+    extra: {}
   };
+}
+
+function deepCloneSafe(obj) {
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj !== "object") return obj;
+  if (Array.isArray(obj)) {
+    return obj.map(item => deepCloneSafe(item));
+  }
+  const result = {};
+  Object.keys(obj).forEach(key => {
+    if (typeof obj[key] === "function") return;
+    result[key] = deepCloneSafe(obj[key]);
+  });
+  return result;
+}
+
+function safeMergeDefaults(saved, defaults) {
+  if (!saved) return deepCloneSafe(defaults);
+  const result = deepCloneSafe(saved);
+  Object.keys(defaults).forEach(key => {
+    if (result[key] === undefined) {
+      result[key] = deepCloneSafe(defaults[key]);
+    }
+  });
+  if (!result.extra) result.extra = {};
+  return result;
 }
 
 function serializeCampaignState() {
   if (!campaignState || !campaignState.active) return null;
-  return {
-    active: campaignState.active,
-    chapterIndex: campaignState.chapterIndex,
-    choices: { ...campaignState.choices },
-    chapterOutcomes: JSON.parse(JSON.stringify(campaignState.chapterOutcomes || [])),
-    triggeredBranches: [...(campaignState.triggeredBranches || [])],
-    completedEvents: [...(campaignState.completedEvents || [])],
-    labEfficiencyBonus: campaignState.labEfficiencyBonus || 0,
-    weatherWeightOverride: campaignState.weatherWeightOverride ? { ...campaignState.weatherWeightOverride } : null
-  };
+  const serialized = deepCloneSafe(campaignState);
+  if (!serialized.extra) serialized.extra = {};
+  return serialized;
 }
 
 function deserializeCampaignState(saved) {
   if (!saved) return null;
-  return {
-    active: saved.active !== false,
-    chapterIndex: saved.chapterIndex || 0,
-    choices: saved.choices || {},
-    chapterOutcomes: saved.chapterOutcomes || [],
-    triggeredBranches: saved.triggeredBranches || [],
-    completedEvents: saved.completedEvents || [],
-    labEfficiencyBonus: saved.labEfficiencyBonus || 0,
-    weatherWeightOverride: saved.weatherWeightOverride || null
+  const defaults = {
+    active: true,
+    chapterIndex: 0,
+    choices: {},
+    chapterOutcomes: [],
+    triggeredBranches: [],
+    completedEvents: [],
+    labEfficiencyBonus: 0,
+    weatherWeightOverride: null,
+    extra: {}
   };
+  return safeMergeDefaults(saved, defaults);
 }
 
 function serializeGameState() {
   if (!state || !state.started) return null;
-  return {
-    started: state.started,
-    mission: state.mission ? {
-      id: state.mission.id,
-      name: state.mission.name,
-      tag: state.mission.tag,
-      desc: state.mission.desc,
-      color: state.mission.color,
-      days: state.mission.days,
-      initial: { ...state.mission.initial },
-      allocations: { ...state.mission.allocations },
-      dataGoal: state.mission.dataGoal,
-      dataPerLab: state.mission.dataPerLab || 0,
-      defaultCommChain: state.mission.defaultCommChain,
-      weatherWeight: state.mission.weatherWeight ? { ...state.mission.weatherWeight } : null,
-      intro: state.mission.intro,
-      commBonus: state.mission.commBonus,
-      commMoraleBonus: state.mission.commMoraleBonus,
-      foodReserve: state.mission.foodReserve,
-      emergencyChance: state.mission.emergencyChance,
-      minFuel: state.mission.minFuel,
-      minMorale: state.mission.minMorale,
-      minFood: state.mission.minFood,
-      isCustom: state.mission.isCustom
-    } : null,
-    selectedMissionId: state.selectedMissionId,
-    day: state.day,
-    fuel: state.fuel,
-    morale: state.morale,
-    food: state.food,
-    data: state.data,
-    weather: state.weather ? { ...state.weather } : null,
-    allocations: { ...state.allocations },
-    nextDayEffects: state.nextDayEffects ? { ...state.nextDayEffects } : null,
-    crew: JSON.parse(JSON.stringify(state.crew || [])),
-    equipment: JSON.parse(JSON.stringify(state.equipment || {})),
-    samples: JSON.parse(JSON.stringify(state.samples || {})),
-    sampleValueLostToday: state.sampleValueLostToday ? JSON.parse(JSON.stringify(state.sampleValueLostToday)) : {},
-    commChains: JSON.parse(JSON.stringify(state.commChains || {})),
-    activeCommChainId: state.activeCommChainId,
-    lastCommAdvancedDay: state.lastCommAdvancedDay || 0,
-    log: [...(state.log || [])]
-  };
+  const serialized = deepCloneSafe(state);
+  if (serialized.mission) {
+    delete serialized.mission.successText;
+    delete serialized.mission.failText;
+  }
+  if (!serialized.extra) serialized.extra = {};
+  return serialized;
 }
 
 function deserializeGameState(saved) {
   if (!saved) return null;
-  const mission = saved.mission;
-  if (mission && !mission.successText) {
-    mission.successText = function(s) {
+  const defaults = {
+    started: false,
+    mission: null,
+    selectedMissionId: null,
+    day: 1,
+    fuel: 80,
+    morale: 80,
+    food: 70,
+    data: 0,
+    weather: null,
+    allocations: { heat: 3, comm: 2, lab: 4, food: 3 },
+    nextDayEffects: {},
+    crew: [],
+    equipment: {},
+    samples: {},
+    sampleValueLostToday: {},
+    commChains: {},
+    activeCommChainId: null,
+    lastCommAdvancedDay: 0,
+    log: [],
+    extra: {}
+  };
+  const result = safeMergeDefaults(saved, defaults);
+  if (result.mission && !result.mission.successText) {
+    result.mission.successText = function(s) {
       const ret = s.returnedValue !== undefined ? s.returnedValue : s.sampleValue;
       const disc = s.discoveredValue !== undefined ? s.discoveredValue : s.sampleValue;
       return `任务完成！现场发现样本价值${disc}，成功返运样本价值${ret}。科研成果：${s.data}，最终评分：${s.score}。`;
     };
-    mission.failText = function(s) {
+    result.mission.failText = function(s) {
       const disc = s.discoveredValue !== undefined ? s.discoveredValue : s.sampleValue;
       return `任务失败，某项关键资源归零。现场发现样本价值${disc}，未及组织返运全部遗失。仅获得数据 ${s.data}，最终评分：${s.score}。`;
     };
   }
-  return {
-    started: saved.started,
-    mission: mission,
-    selectedMissionId: saved.selectedMissionId,
-    day: saved.day,
-    fuel: saved.fuel,
-    morale: saved.morale,
-    food: saved.food,
-    data: saved.data,
-    weather: saved.weather,
-    allocations: saved.allocations,
-    nextDayEffects: saved.nextDayEffects,
-    crew: saved.crew,
-    equipment: saved.equipment,
-    samples: saved.samples,
-    sampleValueLostToday: saved.sampleValueLostToday || {},
-    commChains: saved.commChains,
-    activeCommChainId: saved.activeCommChainId,
-    lastCommAdvancedDay: saved.lastCommAdvancedDay || 0,
-    log: saved.log || []
-  };
+  return result;
 }
 
 function serializeUIState() {
-  return {
-    emergencyPending: emergencyPending ? JSON.parse(JSON.stringify(emergencyPending)) : null,
-    branchEventPending: branchEventPending ? JSON.parse(JSON.stringify(branchEventPending)) : null,
+  const uiState = {
+    emergencyPending: emergencyPending ? deepCloneSafe(emergencyPending) : null,
+    branchEventPending: branchEventPending ? deepCloneSafe(branchEventPending) : null,
     tutorialActive: tutorialActive || false,
     tutorialCurrentStep: tutorialCurrentStep || 0,
     activeOverlay: getActiveOverlay(),
+    chapterIntroIndex: currentChapterIntroIndex,
+    settleData: currentSettleData ? deepCloneSafe(currentSettleData) : null,
+    endingData: currentEndingData ? deepCloneSafe(currentEndingData) : null,
+    extra: {},
     timestamp: Date.now()
   };
+  return uiState;
 }
 
 function getActiveOverlay() {
@@ -1631,29 +1627,62 @@ function saveCampaignSaves(saves) {
 function migrateCampaignSave(save) {
   if (!save || !save.version) return null;
   try {
-    if (save.version < CAMPAIGN_SAVE_VERSION) {
-      if (save.version === 1 && CAMPAIGN_SAVE_VERSION >= 1) {
-        if (!save.campaignState.completedEvents) {
-          save.campaignState.completedEvents = save.campaignState.triggeredBranches || [];
-        }
-        if (!save.gameState.sampleValueLostToday) {
-          save.gameState.sampleValueLostToday = {};
-        }
-        if (!save.uiState) {
-          save.uiState = {
-            emergencyPending: null,
-            branchEventPending: null,
-            tutorialActive: false,
-            tutorialCurrentStep: 0,
-            activeOverlay: null,
-            timestamp: save.timestamp
-          };
-        }
-        if (!save.extra) save.extra = {};
-        save.version = CAMPAIGN_SAVE_VERSION;
+    let migrated = deepCloneSafe(save);
+
+    if (migrated.version < 2) {
+      if (!migrated.campaignState) migrated.campaignState = {};
+      if (!migrated.campaignState.completedEvents) {
+        migrated.campaignState.completedEvents = migrated.campaignState.triggeredBranches || [];
       }
+      if (!migrated.campaignState.extra) migrated.campaignState.extra = {};
+
+      if (!migrated.gameState) migrated.gameState = {};
+      if (!migrated.gameState.sampleValueLostToday) {
+        migrated.gameState.sampleValueLostToday = {};
+      }
+      if (!migrated.gameState.extra) migrated.gameState.extra = {};
+      if (!migrated.gameState.lastCommAdvancedDay) {
+        migrated.gameState.lastCommAdvancedDay = 0;
+      }
+
+      if (!migrated.uiState) {
+        migrated.uiState = {
+          emergencyPending: null,
+          branchEventPending: null,
+          tutorialActive: false,
+          tutorialCurrentStep: 0,
+          activeOverlay: null,
+          chapterIntroIndex: null,
+          settleData: null,
+          endingData: null,
+          extra: {},
+          timestamp: migrated.timestamp
+        };
+      } else {
+        if (!migrated.uiState.chapterIntroIndex) migrated.uiState.chapterIntroIndex = null;
+        if (!migrated.uiState.settleData) migrated.uiState.settleData = null;
+        if (!migrated.uiState.endingData) migrated.uiState.endingData = null;
+        if (!migrated.uiState.extra) migrated.uiState.extra = {};
+      }
+
+      if (!migrated.extra) migrated.extra = {};
+      if (!migrated.totalDays) {
+        migrated.totalDays = migrated.day || 1;
+      }
+      if (!migrated.choicesCount) {
+        migrated.choicesCount = migrated.campaignState?.choices
+          ? Object.keys(migrated.campaignState.choices).length
+          : 0;
+      }
+
+      migrated.version = 2;
     }
-    return save;
+
+    if (migrated.version < CAMPAIGN_SAVE_VERSION) {
+      migrated.version = CAMPAIGN_SAVE_VERSION;
+    }
+
+    return migrated;
   } catch (e) {
     console.error("Failed to migrate campaign save:", e);
     return null;
@@ -1717,6 +1746,9 @@ function restoreCampaignSave(save) {
     branchEventPending = migrated.uiState?.branchEventPending || null;
     tutorialActive = migrated.uiState?.tutorialActive || false;
     tutorialCurrentStep = migrated.uiState?.tutorialCurrentStep || 0;
+    currentChapterIntroIndex = migrated.uiState?.chapterIntroIndex ?? null;
+    currentSettleData = migrated.uiState?.settleData || null;
+    currentEndingData = migrated.uiState?.endingData || null;
     const saves = loadCampaignSaves();
     const updated = saves.map(s => {
       if (s.id === migrated.id) {
@@ -1736,29 +1768,81 @@ function applyRestoredCampaignUI(save) {
   hideAllOverlays();
   missionDeskEl.classList.add("hidden");
   levelEditorPanel.classList.add("hidden");
-  crewPanelEl.classList.remove("hidden");
-  workshopPanelEl.classList.remove("hidden");
-  samplesPanelEl.classList.remove("hidden");
-  commPanelEl.classList.remove("hidden");
-  controlsPanelEl.classList.remove("hidden");
-  dayPreviewPanelEl.classList.remove("hidden");
-  campaignProgressEl.classList.remove("hidden");
+
   const uiState = save?.uiState;
-  if (uiState) {
-    if (uiState.activeOverlay === "emergency" && emergencyPending) {
-      showEmergencyEvent(emergencyPending);
-    } else if (uiState.activeOverlay === "branchEvent" && branchEventPending) {
-      showBranchEvent(branchEventPending);
-    } else if (uiState.tutorialActive) {
-      tutorialOverlay.classList.remove("hidden");
-      showTutorialStep(uiState.tutorialCurrentStep);
+  const activeOverlay = uiState?.activeOverlay;
+
+  const showGamePanels = () => {
+    crewPanelEl.classList.remove("hidden");
+    workshopPanelEl.classList.remove("hidden");
+    samplesPanelEl.classList.remove("hidden");
+    commPanelEl.classList.remove("hidden");
+    controlsPanelEl.classList.remove("hidden");
+    dayPreviewPanelEl.classList.remove("hidden");
+    campaignProgressEl.classList.remove("hidden");
+  };
+
+  let overlayRestored = false;
+
+  if (activeOverlay === "chapterIntro" && currentChapterIntroIndex !== null) {
+    const chapter = campaignChapters[currentChapterIntroIndex];
+    if (chapter) {
+      showChapterIntro(currentChapterIntroIndex);
+      overlayRestored = true;
     }
   }
-  if (emergencyPending && emergencyOverlay.classList.contains("hidden")) {
-    showEmergencyEvent(emergencyPending);
-  } else if (branchEventPending && branchEventOverlay.classList.contains("hidden")) {
-    showBranchEvent(branchEventPending);
+
+  if (!overlayRestored && activeOverlay === "chapterSettle" && currentSettleData) {
+    const chapter = campaignChapters[currentSettleData.chapterIndex];
+    if (chapter) {
+      showGamePanels();
+      showChapterSettlement(
+        chapter,
+        currentSettleData.success,
+        currentSettleData.allObjectivesMet,
+        currentSettleData.objResults,
+        currentSettleData.outcome
+      );
+      overlayRestored = true;
+    }
   }
+
+  if (!overlayRestored && activeOverlay === "campaignEnding" && currentEndingData) {
+    showGamePanels();
+    showCampaignEnding(
+      currentEndingData.lastChapterSuccess,
+      currentEndingData.allObjectivesMet,
+      currentEndingData.lastOutcome
+    );
+    overlayRestored = true;
+  }
+
+  if (!overlayRestored && uiState) {
+    if (activeOverlay === "emergency" && emergencyPending) {
+      showGamePanels();
+      showEmergencyEvent(emergencyPending);
+      overlayRestored = true;
+    } else if (activeOverlay === "branchEvent" && branchEventPending) {
+      showGamePanels();
+      showBranchEvent(branchEventPending);
+      overlayRestored = true;
+    } else if (uiState.tutorialActive) {
+      showGamePanels();
+      tutorialOverlay.classList.remove("hidden");
+      showTutorialStep(uiState.tutorialCurrentStep);
+      overlayRestored = true;
+    }
+  }
+
+  if (!overlayRestored) {
+    showGamePanels();
+    if (emergencyPending && emergencyOverlay.classList.contains("hidden")) {
+      showEmergencyEvent(emergencyPending);
+    } else if (branchEventPending && branchEventOverlay.classList.contains("hidden")) {
+      showBranchEvent(branchEventPending);
+    }
+  }
+
   renderCampaignProgress();
   render();
   addLog("📂 已从存档恢复战役进度。");
@@ -1772,6 +1856,9 @@ function abandonCampaign() {
   emergencyPending = null;
   branchEventPending = null;
   tutorialActive = false;
+  currentChapterIntroIndex = null;
+  currentSettleData = null;
+  currentEndingData = null;
   campaignState = null;
   state = freshState();
   missionDeskEl.classList.remove("hidden");
@@ -2515,6 +2602,8 @@ function showChapterIntro(chapterIndex) {
   const chapter = campaignChapters[chapterIndex];
   if (!chapter) return;
 
+  currentChapterIntroIndex = chapterIndex;
+
   chapterIntroBadge.textContent = chapter.badge;
   chapterIntroTitle.textContent = chapter.name;
   chapterIntroSubtitle.textContent = chapter.subtitle;
@@ -2555,6 +2644,7 @@ function showChapterIntro(chapterIndex) {
 
   chapterIntroStartBtn.onclick = function() {
     chapterIntroOverlay.classList.add("hidden");
+    currentChapterIntroIndex = null;
     startCampaignChapter(chapterIndex);
   };
 
@@ -3606,6 +3696,15 @@ function finishCampaignChapter(success) {
 }
 
 function showChapterSettlement(chapter, success, allObjectivesMet, objResults, outcome) {
+  currentSettleData = {
+    chapterId: chapter.id,
+    chapterIndex: campaignState.chapterIndex,
+    success,
+    allObjectivesMet,
+    objResults: JSON.parse(JSON.stringify(objResults || [])),
+    outcome: JSON.parse(JSON.stringify(outcome || {}))
+  };
+
   chapterSettleTitle.textContent = `${chapter.badge}「${chapter.name}」结算`;
 
   const summaryEl = chapterSettleSummary;
@@ -3673,6 +3772,7 @@ function showChapterSettlement(chapter, success, allObjectivesMet, objResults, o
   chapterSettleNextBtn.textContent = nextChapter ? `进入${nextChapter.badge}「${nextChapter.name}」` : "查看结局";
   chapterSettleNextBtn.onclick = function() {
     chapterSettleOverlay.classList.add("hidden");
+    currentSettleData = null;
     if (nextChapter) {
       showChapterIntro(campaignState.chapterIndex + 1);
     }
@@ -3683,6 +3783,13 @@ function showChapterSettlement(chapter, success, allObjectivesMet, objResults, o
 
 function showCampaignEnding(lastChapterSuccess, allObjectivesMet, lastOutcome) {
   stopAutosave();
+
+  currentEndingData = {
+    lastChapterSuccess,
+    allObjectivesMet,
+    lastOutcome: lastOutcome ? JSON.parse(JSON.stringify(lastOutcome)) : null
+  };
+
   const totalDiscovered = campaignState.chapterOutcomes.reduce((sum, o) => sum + (o.sampleDiscoveredValue || o.sampleValue || 0), 0);
   const totalReturned = campaignState.chapterOutcomes.reduce((sum, o) => sum + (o.sampleReturnedValue || (o.success ? (o.sampleValue || 0) : 0)), 0);
   const totalScore = campaignState.chapterOutcomes.reduce((sum, o) => {
@@ -3745,6 +3852,9 @@ function showCampaignEnding(lastChapterSuccess, allObjectivesMet, lastOutcome) {
 
   campaignEndingBtn.onclick = function() {
     hideAllOverlays();
+    currentEndingData = null;
+    currentSettleData = null;
+    currentChapterIntroIndex = null;
     emergencyPending = null;
     branchEventPending = null;
     tutorialActive = false;
