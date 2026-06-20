@@ -1,11 +1,22 @@
 {
-  "name": "wxyy-level-editor-tests",
+  "name": "wxyy-polar-station",
   "version": "1.0.0",
-  "description": "关卡编辑器配置校验与保存流程测试",
+  "description": "极地科考站值班 - 纯静态前端游戏",
+  "private": true,
   "scripts": {
-    "test": "node test/level-editor.test.js"
+    "dev": "http-server -p 8080 -c-1 -o",
+    "serve": "http-server -p 8080 -c-1",
+    "test": "npm run test:unit && npm run test:smoke",
+    "test:unit": "node test/level-editor.test.js",
+    "test:smoke": "node test/smoke.test.js",
+    "lint": "node test/lint.js",
+    "check": "npm run lint && npm run test:unit"
+  },
+  "devDependencies": {
+    "http-server": "^14.1.1",
+    "playwright": "^1.40.0"
   },
   "engines": {
-    "node": ">=14.0.0"
+    "node": ">=16.0.0"
   }
 }

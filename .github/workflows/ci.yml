@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  check:
+    name: 代码检查与单元测试
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 设置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 安装依赖
+        run: npm install
+
+      - name: 运行 Lint 检查
+        run: npm run lint
+
+      - name: 运行单元测试
+        run: npm run test:unit
+
+  smoke:
+    name: 浏览器冒烟测试
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 设置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 安装依赖
+        run: npm install
+
+      - name: 安装 Playwright 浏览器
+        run: npx playwright install chromium
+
+      - name: 安装 Playwright 系统依赖
+        run: npx playwright install-deps chromium
+
+      - name: 运行冒烟测试
+        run: npm run test:smoke
+
+      - name: 上传失败截图
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-failure-screenshots
+          path: .test-failures/
+          retention-days: 7
+
+  all-checks:
+    name: 所有检查通过
+    runs-on: ubuntu-latest
+    needs: [check, smoke]
+    if: always()
+    steps:
+      - name: 验证所有任务通过
+        run: |
+          if [[ "${{ needs.check.result }}" != "success" ]]; then
+            echo "代码检查失败"
+            exit 1
+          fi
+          if [[ "${{ needs.smoke.result }}" != "success" ]]; then
+            echo "冒烟测试失败"
+            exit 1
+          fi
+          echo "所有检查通过 ✓"
