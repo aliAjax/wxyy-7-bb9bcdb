@@ -3031,7 +3031,7 @@ function getPriorityConfig(priorityId) {
   return returnPriorityLevels.find((p) => p.id === priorityId) || returnPriorityLevels[2];
 }
 
-function performReturnSettlement(allocations, weather, finalResources) {
+function performReturnSettlementForState(returnState, allocations, weather, finalResources) {
   const result = {
     succeeded: [],
     failed: [],
@@ -3082,7 +3082,7 @@ function performReturnSettlement(allocations, weather, finalResources) {
   const allItems = [];
 
   sampleTypes.forEach((type) => {
-    const s = state.samples[type.id];
+    const s = returnState.samples[type.id];
     const discoveredVal = s.totalProduced * type.value;
     result.discoveredValue += discoveredVal;
 
@@ -3160,7 +3160,7 @@ function performReturnSettlement(allocations, weather, finalResources) {
   });
 
   sampleTypes.forEach((type) => {
-    const s = state.samples[type.id];
+    const s = returnState.samples[type.id];
     const accepted = acceptedByType[type.id] || [];
     s.returnAttempted = allItems.filter((it) => it.typeId === type.id).length;
     s.returnSucceeded = accepted.length;
@@ -3180,6 +3180,10 @@ function performReturnSettlement(allocations, weather, finalResources) {
   }
 
   return result;
+}
+
+function performReturnSettlement(allocations, weather, finalResources) {
+  return performReturnSettlementForState(state, allocations, weather, finalResources);
 }
 
 function degradeEquipment() {
@@ -7276,47 +7280,13 @@ const BalanceSimulator = (function () {
   }
 
   function simPerformReturnSettlement(simState) {
-    const allocations = simState.allocations;
-    const weather = simState.weather;
-    const finalResources = { fuel: simState.fuel, food: simState.food, morale: simState.morale };
-
-    let returnedValue = 0;
-    const commPower = allocations.comm || 0;
-    const foodPower = allocations.food || 0;
-    const heatPower = allocations.heat || 0;
-    const { fuel, food, morale } = finalResources;
-
-    const weatherMultMap = { "晴朗": 1.0, "低温": 0.85, "暴风雪": 0.55, "极夜静风": 0.95 };
-    const weatherMult = weatherMultMap[weather.name] || 1.0;
-
-    const commSuccessRate = Math.min(0.95, 0.4 + commPower * 0.12);
-    const foodPreserveRate = Math.min(0.95, 0.5 + foodPower * 0.10);
-    const heatStableRate = Math.min(0.95, 0.5 + heatPower * 0.10);
-    const resourceRate = Math.min(0.95, 0.2 + (fuel / 100) * 0.25 + (food / 100) * 0.25 + (morale / 100) * 0.30);
-
-    const sortedTypes = [...sampleTypes].sort((a, b) => {
-      const pa = getPriorityConfig(simState.samples[a.id].priority);
-      const pb = getPriorityConfig(simState.samples[b.id].priority);
-      return pb.weight - pa.weight;
-    });
-
-    sortedTypes.forEach((type) => {
-      const s = simState.samples[type.id];
-      if (s.count <= 0) return;
-      for (let i = 0; i < s.count; i++) {
-        s.returnAttempted++;
-        const successProb = Math.max(0, Math.min(0.98,
-          weatherMult * commSuccessRate * foodPreserveRate * heatStableRate * resourceRate * (1 - type.baseRisk)
-        ));
-        if (Math.random() < successProb) {
-          s.returnSucceeded++;
-          const integrityFactor = s.integrity / 100;
-          returnedValue += Math.round(type.value * integrityFactor);
-        }
-      }
-    });
-
-    return returnedValue;
+    const settlement = performReturnSettlementForState(
+      simState,
+      simState.allocations,
+      simState.weather,
+      { fuel: simState.fuel, food: simState.food, morale: simState.morale }
+    );
+    return settlement.returnedValue;
   }
 
   function simCheckCustomVictory(simState, finalResearchValue, returnedValue) {
