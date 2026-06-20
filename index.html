@@ -218,6 +218,16 @@
         </div>
       </div>
 
+      <div class="editor-section editor-emergency-section">
+        <h3>⚠ 自定义突发事件牌组</h3>
+        <p class="editor-sub-hint">配置属于你的突发事件牌组。留空则使用默认事件池；配置后游玩本关卡将<strong>仅使用你配置的事件</strong>（不再触发默认事件）。</p>
+        <div class="editor-emergency-head">
+          <span class="editor-emergency-count">已配置 <strong id="editorEmergencyCount">0</strong> 个事件</span>
+          <button type="button" id="editorEmergencyAddBtn" class="editor-btn-primary" style="min-height:32px;font-size:12px;padding:0 12px">+ 新增事件</button>
+        </div>
+        <div id="editorEmergencyList" class="editor-emergency-list"></div>
+      </div>
+
       <div id="editorValidation" class="editor-validation hidden"></div>
 
       <div class="editor-actions">
@@ -559,6 +569,181 @@
         <p class="archive-detail-ending" id="archiveDetailEnding">结局文案</p>
       </div>
       <button id="archiveDetailOkBtn" type="button" class="primary archive-detail-ok">关闭</button>
+    </div>
+  </div>
+
+  <div id="editorEmergencyOverlay" class="editor-emergency-overlay hidden">
+    <div class="editor-emergency-mask"></div>
+    <div class="editor-emergency-popup-card">
+      <div class="editor-emergency-popup-head">
+        <h3 id="editorEmergencyCardTitle">新增突发事件</h3>
+        <button id="editorEmergencyCardClose" type="button" class="editor-close-btn">×</button>
+      </div>
+      <div class="editor-emergency-popup-body">
+        <div class="editor-emergency-form-row">
+          <div class="editor-field">
+            <label>事件名称 <span class="field-hint">(1-20字)</span></label>
+            <input type="text" id="eeName" maxlength="20" placeholder="例如：设备故障">
+          </div>
+          <div class="editor-field">
+            <label>图标 <span class="field-hint">(1个emoji)</span></label>
+            <input type="text" id="eeIcon" maxlength="4" placeholder="⚠️">
+          </div>
+        </div>
+        <div class="editor-field">
+          <label>事件描述 <span class="field-hint">(≤200字)</span></label>
+          <textarea id="eeDesc" maxlength="200" rows="3" placeholder="描述事件发生的背景和情况..."></textarea>
+        </div>
+        <div class="editor-emergency-form-row">
+          <div class="editor-field">
+            <label>出现权重 <span class="field-hint">(≥1，越大越常出现)</span></label>
+            <input type="number" id="eeWeight" min="1" max="100" value="1">
+          </div>
+          <div class="editor-field">
+            <label>触发起始天 <span class="field-hint">(从第几天开始可能出现)</span></label>
+            <input type="number" id="eeDayMin" min="1" max="30" value="1">
+          </div>
+          <div class="editor-field">
+            <label>触发结束天 <span class="field-hint">(到第几天为止可能出现)</span></label>
+            <input type="number" id="eeDayMax" min="1" max="30" value="30">
+          </div>
+        </div>
+
+        <div class="editor-emergency-options-title">📝 三个选项配置</div>
+        <div id="editorEmergencyOptions" class="editor-emergency-options-wrap">
+          <!-- 选项1 -->
+          <div class="editor-emergency-option-card" data-opt="0">
+            <div class="editor-emergency-option-head">
+              <strong>选项 1</strong>
+            </div>
+            <div class="editor-field">
+              <label>选项名称 <span class="field-hint">(≤15字)</span></label>
+              <input type="text" class="eeOptLabel" maxlength="15" placeholder="例如：紧急抢修">
+            </div>
+            <div class="editor-field">
+              <label>选项描述 <span class="field-hint">(≤80字)</span></label>
+              <input type="text" class="eeOptDesc" maxlength="80" placeholder="说明这个选择的后果...">
+            </div>
+            <div class="editor-emergency-form-row">
+              <div class="editor-field">
+                <label>柴油影响</label>
+                <input type="number" class="eeOptFuel" value="0" placeholder="-10 ~ +10">
+              </div>
+              <div class="editor-field">
+                <label>食物影响</label>
+                <input type="number" class="eeOptFood" value="0" placeholder="-10 ~ +10">
+              </div>
+              <div class="editor-field">
+                <label>士气影响</label>
+                <input type="number" class="eeOptMorale" value="0" placeholder="-10 ~ +10">
+              </div>
+              <div class="editor-field">
+                <label>数据影响</label>
+                <input type="number" class="eeOptData" value="0" placeholder="-10 ~ +10">
+              </div>
+            </div>
+            <div class="editor-emergency-form-row">
+              <div class="editor-field checkbox-field">
+                <label><input type="checkbox" class="eeOptPowerChk"> 次日电力惩罚</label>
+                <input type="number" class="eeOptPower inline-num" min="0" max="5" value="0">
+              </div>
+              <div class="editor-field checkbox-field">
+                <label><input type="checkbox" class="eeOptFuelRiskChk"> 次日漏油风险</label>
+                <input type="number" class="eeOptFuelRisk inline-num" min="0" max="20" value="0">
+              </div>
+            </div>
+          </div>
+          <!-- 选项2 -->
+          <div class="editor-emergency-option-card" data-opt="1">
+            <div class="editor-emergency-option-head">
+              <strong>选项 2</strong>
+            </div>
+            <div class="editor-field">
+              <label>选项名称 <span class="field-hint">(≤15字)</span></label>
+              <input type="text" class="eeOptLabel" maxlength="15" placeholder="例如：暂时忽略">
+            </div>
+            <div class="editor-field">
+              <label>选项描述 <span class="field-hint">(≤80字)</span></label>
+              <input type="text" class="eeOptDesc" maxlength="80" placeholder="说明这个选择的后果...">
+            </div>
+            <div class="editor-emergency-form-row">
+              <div class="editor-field">
+                <label>柴油影响</label>
+                <input type="number" class="eeOptFuel" value="0" placeholder="-10 ~ +10">
+              </div>
+              <div class="editor-field">
+                <label>食物影响</label>
+                <input type="number" class="eeOptFood" value="0" placeholder="-10 ~ +10">
+              </div>
+              <div class="editor-field">
+                <label>士气影响</label>
+                <input type="number" class="eeOptMorale" value="0" placeholder="-10 ~ +10">
+              </div>
+              <div class="editor-field">
+                <label>数据影响</label>
+                <input type="number" class="eeOptData" value="0" placeholder="-10 ~ +10">
+              </div>
+            </div>
+            <div class="editor-emergency-form-row">
+              <div class="editor-field checkbox-field">
+                <label><input type="checkbox" class="eeOptPowerChk"> 次日电力惩罚</label>
+                <input type="number" class="eeOptPower inline-num" min="0" max="5" value="0">
+              </div>
+              <div class="editor-field checkbox-field">
+                <label><input type="checkbox" class="eeOptFuelRiskChk"> 次日漏油风险</label>
+                <input type="number" class="eeOptFuelRisk inline-num" min="0" max="20" value="0">
+              </div>
+            </div>
+          </div>
+          <!-- 选项3 -->
+          <div class="editor-emergency-option-card" data-opt="2">
+            <div class="editor-emergency-option-head">
+              <strong>选项 3</strong>
+            </div>
+            <div class="editor-field">
+              <label>选项名称 <span class="field-hint">(≤15字)</span></label>
+              <input type="text" class="eeOptLabel" maxlength="15" placeholder="例如：寻求帮助">
+            </div>
+            <div class="editor-field">
+              <label>选项描述 <span class="field-hint">(≤80字)</span></label>
+              <input type="text" class="eeOptDesc" maxlength="80" placeholder="说明这个选择的后果...">
+            </div>
+            <div class="editor-emergency-form-row">
+              <div class="editor-field">
+                <label>柴油影响</label>
+                <input type="number" class="eeOptFuel" value="0" placeholder="-10 ~ +10">
+              </div>
+              <div class="editor-field">
+                <label>食物影响</label>
+                <input type="number" class="eeOptFood" value="0" placeholder="-10 ~ +10">
+              </div>
+              <div class="editor-field">
+                <label>士气影响</label>
+                <input type="number" class="eeOptMorale" value="0" placeholder="-10 ~ +10">
+              </div>
+              <div class="editor-field">
+                <label>数据影响</label>
+                <input type="number" class="eeOptData" value="0" placeholder="-10 ~ +10">
+              </div>
+            </div>
+            <div class="editor-emergency-form-row">
+              <div class="editor-field checkbox-field">
+                <label><input type="checkbox" class="eeOptPowerChk"> 次日电力惩罚</label>
+                <input type="number" class="eeOptPower inline-num" min="0" max="5" value="0">
+              </div>
+              <div class="editor-field checkbox-field">
+                <label><input type="checkbox" class="eeOptFuelRiskChk"> 次日漏油风险</label>
+                <input type="number" class="eeOptFuelRisk inline-num" min="0" max="20" value="0">
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="editorEmergencyCardValidation" class="editor-validation hidden" style="margin:0 16px 12px"></div>
+      <div class="editor-emergency-popup-foot">
+        <button id="editorEmergencyCardCancel" type="button" class="editor-btn-secondary">取消</button>
+        <button id="editorEmergencyCardSave" type="button" class="editor-btn-primary">保存此事件</button>
+      </div>
     </div>
   </div>
 

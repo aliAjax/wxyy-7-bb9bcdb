@@ -206,6 +206,28 @@ const editorFields = {
 
 let editorEditingId = null;
 let editorSaveHintTimer = null;
+let editorEmergencyEvents = [];
+let eeEditingIndex = -1;
+
+const eeEls = {
+  overlay: document.getElementById("editorEmergencyOverlay"),
+  mask: document.querySelector(".editor-emergency-mask"),
+  title: document.getElementById("editorEmergencyCardTitle"),
+  closeBtn: document.getElementById("editorEmergencyCardClose"),
+  cancelBtn: document.getElementById("editorEmergencyCardCancel"),
+  saveBtn: document.getElementById("editorEmergencyCardSave"),
+  validation: document.getElementById("editorEmergencyCardValidation"),
+  addBtn: document.getElementById("editorEmergencyAddBtn"),
+  list: document.getElementById("editorEmergencyList"),
+  count: document.getElementById("editorEmergencyCount"),
+  name: document.getElementById("eeName"),
+  icon: document.getElementById("eeIcon"),
+  desc: document.getElementById("eeDesc"),
+  weight: document.getElementById("eeWeight"),
+  dayMin: document.getElementById("eeDayMin"),
+  dayMax: document.getElementById("eeDayMax"),
+  optionsWrap: document.getElementById("editorEmergencyOptions")
+};
 
 function hideAllOverlays() {
   emergencyOverlay.classList.add("hidden");
@@ -215,6 +237,7 @@ function hideAllOverlays() {
   chapterSettleOverlay.classList.add("hidden");
   campaignEndingOverlay.classList.add("hidden");
   resultEl.classList.add("hidden");
+  eeEls.overlay.classList.add("hidden");
 }
 
 const systems = [
@@ -1446,6 +1469,7 @@ function init() {
   });
   initTutorialEvents();
   initEditorEvents();
+  initEmergencyEditorEvents();
   initFilterEvents();
   renderFilterTags();
   renderMissionCards();
@@ -2607,11 +2631,14 @@ function endDay() {
   }
 
   if (Math.random() < getCustomEmergencyChance()) {
-    const evt = emergencyEvents[Math.floor(Math.random() * emergencyEvents.length)];
-    addLog(`⚠ 突发事件：${evt.name}！`);
-    showEmergencyEvent(evt);
-    render();
-    return;
+    const pool = getEmergencyPool();
+    const evt = pickWeightedEmergency(pool);
+    if (evt) {
+      addLog(`⚠ 突发事件：${evt.name}！`);
+      showEmergencyEvent(evt);
+      render();
+      return;
+    }
   }
 
   state.day += 1;
@@ -4705,7 +4732,20 @@ function loadCustomLevels() {
     const raw = localStorage.getItem(CUSTOM_LEVELS_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((l) => l && l.id && l.name).map((l) => {
+      try {
+        if (Array.isArray(l.emergencyEvents) && l.emergencyEvents.length > 0) {
+          const sanitized = [];
+          l.emergencyEvents.forEach((e) => {
+            const s = sanitizeEmergencyEvent(e);
+            if (s) sanitized.push(s);
+          });
+          l.emergencyEvents = sanitized.length > 0 ? sanitized : undefined;
+        }
+      } catch (ee) {}
+      return l;
+    });
   } catch (e) {
     return [];
   }
@@ -4772,7 +4812,8 @@ function getDefaultEditorConfig() {
     minFuel: 0,
     minMorale: 0,
     minFood: 0,
-    intro: ""
+    intro: "",
+    emergencyEvents: []
   };
 }
 
@@ -4806,6 +4847,14 @@ function populateEditor(config) {
   f.minMorale.value = config.minMorale ?? 0;
   f.minFood.value = config.minFood ?? 0;
   f.intro.value = config.intro || "";
+
+  const rawEvents = Array.isArray(config.emergencyEvents) ? config.emergencyEvents : [];
+  editorEmergencyEvents = [];
+  rawEvents.forEach((e) => {
+    const s = sanitizeEmergencyEvent(e);
+    if (s) editorEmergencyEvents.push(s);
+  });
+  renderEditorEmergencyList();
 }
 
 function collectEditorConfig() {
@@ -4838,7 +4887,8 @@ function collectEditorConfig() {
     minFuel: parseInt(f.minFuel.value) || 0,
     minMorale: parseInt(f.minMorale.value) || 0,
     minFood: parseInt(f.minFood.value) || 0,
-    intro: (f.intro.value || "").trim()
+    intro: (f.intro.value || "").trim(),
+    emergencyEvents: JSON.parse(JSON.stringify(editorEmergencyEvents || []))
   };
 }
 
@@ -4850,6 +4900,13 @@ function editorConfigToMission(config, id) {
     "极夜静风": config.weightNight
   };
   const hasAnyWeight = Object.values(weatherWeight).some((v) => v > 0);
+
+  const sanitizedEvents = [];
+  const rawEvents = Array.isArray(config.emergencyEvents) ? config.emergencyEvents : [];
+  rawEvents.forEach((e) => {
+    const s = sanitizeEmergencyEvent(e);
+    if (s) sanitizedEvents.push(s);
+  });
 
   return {
     id: id,
@@ -4884,8 +4941,64 @@ function editorConfigToMission(config, id) {
     intro: config.intro || `自定义关卡「${config.name}」开始：${config.days}天值班，目标科研成果≥${config.dataGoal}${config.returnedValueGoal > 0 ? `，返运价值≥${config.returnedValueGoal}` : ''}。祝你好运！`,
     isCustom: true,
     successText: null,
-    failText: null
+    failText: null,
+    emergencyEvents: sanitizedEvents.length > 0 ? sanitizedEvents : undefined
   };
+}
+
+function validateEmergencyEvent(evt, idx) {
+  const e = [];
+  const w = [];
+  const prefix = idx != null ? `事件#${idx + 1}「${evt.name || "未命名"}」：` : "";
+
+  if (!evt.name || !String(evt.name).trim()) {
+    e.push(prefix + "名称不能为空");
+  } else if (String(evt.name).length > 20) {
+    e.push(prefix + "名称不能超过20个字符");
+  }
+  if (!evt.desc || !String(evt.desc).trim()) {
+    e.push(prefix + "描述不能为空");
+  }
+  if (!evt.weight || parseInt(evt.weight) < 1) {
+    e.push(prefix + "出现权重必须≥1");
+  }
+  if (evt.dayMin == null || parseInt(evt.dayMin) < 1) {
+    e.push(prefix + "触发起始天必须≥1");
+  }
+  if (evt.dayMax == null || parseInt(evt.dayMax) < 1) {
+    e.push(prefix + "触发结束天必须≥1");
+  }
+  const dMin = parseInt(evt.dayMin) || 1;
+  const dMax = parseInt(evt.dayMax) || 1;
+  if (dMin > dMax) {
+    e.push(prefix + "触发起始天不能大于结束天");
+  }
+
+  if (!Array.isArray(evt.options) || evt.options.length < 3) {
+    e.push(prefix + "必须配置3个选项");
+  } else {
+    for (let i = 0; i < 3; i++) {
+      const o = evt.options[i];
+      const op = prefix + `选项${i + 1}`;
+      if (!o || !o.label || !String(o.label).trim()) {
+        e.push(op + "：名称不能为空");
+      }
+      if (!o || !o.desc || !String(o.desc).trim()) {
+        e.push(op + "：描述不能为空");
+      }
+      if (o) {
+        const fx = o.effects || {};
+        const totalLoss = (parseInt(fx.fuel) < 0 ? Math.abs(parseInt(fx.fuel)) : 0) +
+          (parseInt(fx.food) < 0 ? Math.abs(parseInt(fx.food)) : 0) +
+          (parseInt(fx.morale) < 0 ? Math.abs(parseInt(fx.morale)) : 0);
+        if (totalLoss > 40) {
+          w.push(op + "：总损失量超过40，选择后极易直接失败");
+        }
+      }
+    }
+  }
+
+  return { valid: e.length === 0, errors: e, warnings: w };
 }
 
 function validateLevelConfig(config) {
@@ -4978,6 +5091,36 @@ function validateLevelConfig(config) {
     warnings.push(`突发事件概率 ${config.emergencyChance}% 过高，游戏会非常混乱`);
   }
 
+  const evts = Array.isArray(config.emergencyEvents) ? config.emergencyEvents : [];
+  if (evts.length > 0) {
+    if (config.emergencyChance > 0 && evts.length < 2) {
+      warnings.push(`自定义突发事件仅配置了 ${evts.length} 个，游戏体验会很单调，建议至少2个`);
+    }
+    for (let i = 0; i < evts.length; i++) {
+      const vr = validateEmergencyEvent(evts[i], i);
+      errors.push(...vr.errors);
+      warnings.push(...vr.warnings);
+    }
+    const allDays = {};
+    evts.forEach((e) => {
+      if (!e) return;
+      const mn = parseInt(e.dayMin) || 1;
+      const mx = parseInt(e.dayMax) || config.days;
+      for (let d = mn; d <= mx && d <= config.days; d++) {
+        allDays[d] = true;
+      }
+    });
+    const uncovered = [];
+    for (let d = 1; d <= config.days; d++) {
+      if (!allDays[d]) uncovered.push(d);
+    }
+    if (uncovered.length > 0 && config.emergencyChance > 0) {
+      const sample = uncovered.slice(0, 5).join("、");
+      const more = uncovered.length > 5 ? `…等${uncovered.length}天` : "";
+      warnings.push(`以下天数没有任何自定义突发事件可触发（第${sample}${more}），这些天将不会触发突发事件`);
+    }
+  }
+
   return { valid: errors.length === 0, errors, warnings };
 }
 
@@ -5065,7 +5208,8 @@ function editLevel(id) {
     minFuel: level.minFuel || 0,
     minMorale: level.minMorale || 0,
     minFood: level.minFood || 0,
-    intro: level.intro
+    intro: level.intro,
+    emergencyEvents: level.emergencyEvents || []
   });
 
   editorValidation.classList.add("hidden");
@@ -5155,6 +5299,7 @@ function renderSavedLevels() {
         <span>目标<strong>${level.dataGoal}</strong></span>
         <span>柴油<strong>${level.initial.fuel}</strong></span>
         <span>食物<strong>${level.initial.food}</strong></span>
+        <span>事件<strong>${Array.isArray(level.emergencyEvents) ? level.emergencyEvents.length : 0}${level.emergencyEvents && level.emergencyEvents.length ? "✨" : "♻"}</strong></span>
       </div>
     `;
     item.addEventListener("click", () => editLevel(level.id));
@@ -5207,7 +5352,8 @@ function copyFromSelectedLevel() {
     minFuel: mission.minFuel || 0,
     minMorale: mission.minMorale || 0,
     minFood: mission.minFood || 0,
-    intro: mission.intro || ""
+    intro: mission.intro || "",
+    emergencyEvents: (mission.isCustom && mission.emergencyEvents) ? mission.emergencyEvents : []
   };
 
   if (mission.isCustom && editorEditingId === mission.id) {
@@ -5239,6 +5385,222 @@ function copyFromSelectedLevel() {
   levelEditorPanel.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
+function renderEditorEmergencyList() {
+  if (!eeEls.list || !eeEls.count) return;
+  const evts = editorEmergencyEvents || [];
+  eeEls.count.textContent = evts.length;
+
+  if (evts.length === 0) {
+    eeEls.list.innerHTML = `<div class="editor-emergency-list-empty">📭 尚未配置自定义事件。留空则游玩时使用默认突发事件（天线结冰、样本冷藏故障等）。<br>点击右上角「+ 新增事件」可配置专属事件牌组。</div>`;
+    return;
+  }
+
+  eeEls.list.innerHTML = "";
+  evts.forEach((e, idx) => {
+    const card = document.createElement("div");
+    card.className = "editor-emergency-card";
+    const tags = [];
+    tags.push(`权重 ${e.weight || 1}`);
+    tags.push(`第${e.dayMin || 1}-${e.dayMax || 30}天`);
+    const tagHtml = tags.map((t, i) => `<span class="editor-emergency-meta-chip ${i === 0 ? "" : "warn"}">${t}</span>`).join("");
+
+    let optsHtml = "";
+    (e.options || []).forEach((o, oi) => {
+      const fx = o.effects || {};
+      const arr = [];
+      if (fx.fuel) arr.push(`柴油${fx.fuel > 0 ? "+" : ""}${fx.fuel}`);
+      if (fx.food) arr.push(`食物${fx.food > 0 ? "+" : ""}${fx.food}`);
+      if (fx.morale) arr.push(`士气${fx.morale > 0 ? "+" : ""}${fx.morale}`);
+      if (fx.data) arr.push(`数据${fx.data > 0 ? "+" : ""}${fx.data}`);
+      optsHtml += `<div><strong>${oi + 1}.</strong> ${o.label || "-"} — ${arr.join("、") || "无影响"}</div>`;
+    });
+
+    card.innerHTML = `
+      <div class="editor-emergency-card-head">
+        <span class="editor-emergency-card-icon">${e.icon || "⚠️"}</span>
+        <span class="editor-emergency-card-name">${e.name || "未命名"}</span>
+        <div class="editor-emergency-card-actions">
+          <button type="button" class="editor-emergency-card-btn" title="编辑">✏️</button>
+          <button type="button" class="editor-emergency-card-btn del" title="删除">🗑</button>
+        </div>
+      </div>
+      <div class="editor-emergency-card-desc">${e.desc || "（无描述）"}</div>
+      <div class="editor-emergency-card-meta">${tagHtml}</div>
+      <div class="editor-emergency-options-preview">${optsHtml || "（无选项配置）"}</div>
+    `;
+
+    const btns = card.querySelectorAll(".editor-emergency-card-btn");
+    btns[0].addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      openEmergencyEditor(idx);
+    });
+    btns[1].addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      deleteEmergencyEvent(idx);
+    });
+    card.addEventListener("click", () => openEmergencyEditor(idx));
+    eeEls.list.appendChild(card);
+  });
+}
+
+function openEmergencyEditor(idx) {
+  eeEditingIndex = (typeof idx === "number" && idx >= 0) ? idx : -1;
+  eeEls.validation.classList.add("hidden");
+  eeEls.validation.className = "editor-validation hidden";
+
+  if (eeEditingIndex >= 0) {
+    const evt = editorEmergencyEvents[eeEditingIndex];
+    eeEls.title.textContent = `编辑事件 #${eeEditingIndex + 1}：${evt.name || ""}`;
+    populateEmergencyEditor(evt);
+  } else {
+    eeEls.title.textContent = "新增突发事件";
+    populateEmergencyEditor(null);
+  }
+
+  eeEls.overlay.classList.remove("hidden");
+}
+
+function closeEmergencyEditor() {
+  eeEditingIndex = -1;
+  eeEls.overlay.classList.add("hidden");
+}
+
+function populateEmergencyEditor(evt) {
+  const opts = Array.isArray(evt && evt.options) ? evt.options : [];
+  eeEls.name.value = (evt && evt.name) || "";
+  eeEls.icon.value = (evt && evt.icon) || "⚠️";
+  eeEls.desc.value = (evt && evt.desc) || "";
+  eeEls.weight.value = (evt && evt.weight) || 1;
+  eeEls.dayMin.value = (evt && evt.dayMin) || 1;
+  eeEls.dayMax.value = (evt && evt.dayMax) || 30;
+
+  const cards = eeEls.optionsWrap.querySelectorAll(".editor-emergency-option-card");
+  cards.forEach((card, i) => {
+    const o = opts[i] || { label: "", desc: "", effects: {} };
+    const fx = o.effects || {};
+    card.querySelector(".eeOptLabel").value = o.label || "";
+    card.querySelector(".eeOptDesc").value = o.desc || "";
+    card.querySelector(".eeOptFuel").value = fx.fuel || 0;
+    card.querySelector(".eeOptFood").value = fx.food || 0;
+    card.querySelector(".eeOptMorale").value = fx.morale || 0;
+    card.querySelector(".eeOptData").value = fx.data || 0;
+    const powerChk = card.querySelector(".eeOptPowerChk");
+    const powerInp = card.querySelector(".eeOptPower");
+    powerChk.checked = !!(fx.nextDayPowerPenalty && fx.nextDayPowerPenalty > 0);
+    powerInp.value = fx.nextDayPowerPenalty || 0;
+    powerInp.disabled = !powerChk.checked;
+    const riskChk = card.querySelector(".eeOptFuelRiskChk");
+    const riskInp = card.querySelector(".eeOptFuelRisk");
+    riskChk.checked = !!(fx.nextDayFuelRisk && fx.nextDayFuelRisk > 0);
+    riskInp.value = fx.nextDayFuelRisk || 0;
+    riskInp.disabled = !riskChk.checked;
+
+    powerChk.onchange = () => { powerInp.disabled = !powerChk.checked; if (!powerChk.checked) powerInp.value = 0; };
+    riskChk.onchange = () => { riskInp.disabled = !riskChk.checked; if (!riskChk.checked) riskInp.value = 0; };
+  });
+}
+
+function collectEmergencyEditor() {
+  const cards = eeEls.optionsWrap.querySelectorAll(".editor-emergency-option-card");
+  const options = [];
+  cards.forEach((card) => {
+    const fx = {};
+    const fuel = parseInt(card.querySelector(".eeOptFuel").value);
+    const food = parseInt(card.querySelector(".eeOptFood").value);
+    const morale = parseInt(card.querySelector(".eeOptMorale").value);
+    const data = parseInt(card.querySelector(".eeOptData").value);
+    const powerChk = card.querySelector(".eeOptPowerChk").checked;
+    const power = parseInt(card.querySelector(".eeOptPower").value);
+    const riskChk = card.querySelector(".eeOptFuelRiskChk").checked;
+    const risk = parseInt(card.querySelector(".eeOptFuelRisk").value);
+    if (fuel) fx.fuel = fuel;
+    if (food) fx.food = food;
+    if (morale) fx.morale = morale;
+    if (data) fx.data = data;
+    if (powerChk && power > 0) fx.nextDayPowerPenalty = power;
+    if (riskChk && risk > 0) fx.nextDayFuelRisk = risk;
+    options.push({
+      label: (card.querySelector(".eeOptLabel").value || "").trim(),
+      desc: (card.querySelector(".eeOptDesc").value || "").trim(),
+      effects: fx
+    });
+  });
+
+  return {
+    name: (eeEls.name.value || "").trim(),
+    icon: (eeEls.icon.value || "⚠️").trim(),
+    desc: (eeEls.desc.value || "").trim(),
+    weight: parseInt(eeEls.weight.value) || 1,
+    dayMin: parseInt(eeEls.dayMin.value) || 1,
+    dayMax: parseInt(eeEls.dayMax.value) || 1,
+    options: options
+  };
+}
+
+function showEmergencyCardValidation(result) {
+  if (!result) {
+    eeEls.validation.classList.add("hidden");
+    eeEls.validation.className = "editor-validation hidden";
+    return;
+  }
+  eeEls.validation.classList.remove("hidden");
+  if (result.valid && result.warnings.length === 0) {
+    eeEls.validation.className = "editor-validation success";
+    eeEls.validation.innerHTML = `<strong>✅ 校验通过</strong>`;
+  } else if (result.valid) {
+    eeEls.validation.className = "editor-validation warning";
+    eeEls.validation.innerHTML = `<strong>⚠ 校验通过，但有警告：</strong><ul>${result.warnings.map((w) => `<li>${w}</li>`).join("")}</ul>`;
+  } else {
+    eeEls.validation.className = "editor-validation error";
+    eeEls.validation.innerHTML = `<strong>❌ 配置存在错误：</strong><ul>${result.errors.map((e) => `<li>${e}</li>`).join("")}</ul>${result.warnings.length ? `<hr style="border-color:#e0c070;margin:8px 0"><strong style="color:#8e5a1a">同时警告：</strong><ul>${result.warnings.map((w) => `<li>${w}</li>`).join("")}</ul>` : ""}`;
+  }
+}
+
+function saveEmergencyEditor() {
+  const raw = collectEmergencyEditor();
+  const result = validateEmergencyEvent(raw, eeEditingIndex >= 0 ? eeEditingIndex : null);
+  if (!result.valid) {
+    showEmergencyCardValidation(result);
+    return;
+  }
+  const sanitized = sanitizeEmergencyEvent(raw);
+  if (!sanitized) {
+    alert("事件数据格式异常，请重试。");
+    return;
+  }
+
+  if (eeEditingIndex >= 0) {
+    editorEmergencyEvents[eeEditingIndex] = sanitized;
+  } else {
+    editorEmergencyEvents.push(sanitized);
+  }
+  closeEmergencyEditor();
+  renderEditorEmergencyList();
+  clearEditorSaveHintTimer();
+}
+
+function deleteEmergencyEvent(idx) {
+  const name = (editorEmergencyEvents[idx] && editorEmergencyEvents[idx].name) || `事件 #${idx + 1}`;
+  if (!confirm(`确定要删除突发事件「${name}」吗？`)) return;
+  editorEmergencyEvents.splice(idx, 1);
+  renderEditorEmergencyList();
+  clearEditorSaveHintTimer();
+}
+
+function initEmergencyEditorEvents() {
+  eeEls.addBtn.addEventListener("click", () => openEmergencyEditor(-1));
+  eeEls.closeBtn.addEventListener("click", closeEmergencyEditor);
+  eeEls.cancelBtn.addEventListener("click", closeEmergencyEditor);
+  eeEls.mask.addEventListener("click", closeEmergencyEditor);
+  eeEls.saveBtn.addEventListener("click", saveEmergencyEditor);
+
+  document.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape" && !eeEls.overlay.classList.contains("hidden")) {
+      closeEmergencyEditor();
+    }
+  });
+}
+
 function initEditorEvents() {
   toggleEditorBtn.addEventListener("click", openEditor);
   closeEditorBtn.addEventListener("click", closeEditor);
@@ -5260,6 +5622,79 @@ function initEditorEvents() {
   editorDeleteBtn.addEventListener("click", () => {
     if (editorEditingId) deleteLevel(editorEditingId);
   });
+}
+
+function getEmergencyPool() {
+  try {
+    const mission = state.mission;
+    const day = state.day || 1;
+    if (mission && mission.isCustom && mission.emergencyEvents && Array.isArray(mission.emergencyEvents) && mission.emergencyEvents.length > 0) {
+      const filtered = mission.emergencyEvents.filter((e) => {
+        if (!e || typeof e !== "object") return false;
+        const minD = e.dayMin != null ? parseInt(e.dayMin) || 1 : 1;
+        const maxD = e.dayMax != null ? parseInt(e.dayMax) || 999 : 999;
+        return day >= minD && day <= maxD;
+      });
+      if (filtered.length > 0) return filtered;
+      return [];
+    }
+    return emergencyEvents.filter((e) => !!e);
+  } catch (e) {
+    return emergencyEvents;
+  }
+}
+
+function pickWeightedEmergency(pool) {
+  try {
+    if (!pool || pool.length === 0) return null;
+    const weights = pool.map((e) => Math.max(1, parseInt(e.weight) || 1));
+    const total = weights.reduce((a, b) => a + b, 0);
+    if (total <= 0) return pool[Math.floor(Math.random() * pool.length)];
+    let r = Math.random() * total;
+    for (let i = 0; i < pool.length; i++) {
+      r -= weights[i];
+      if (r <= 0) return pool[i];
+    }
+    return pool[pool.length - 1];
+  } catch (e) {
+    return pool && pool.length ? pool[0] : null;
+  }
+}
+
+function sanitizeEmergencyEvent(evt) {
+  try {
+    if (!evt || typeof evt !== "object") return null;
+    const safeOpts = [];
+    const rawOpts = Array.isArray(evt.options) ? evt.options : [];
+    for (let i = 0; i < 3; i++) {
+      const o = rawOpts[i] || {};
+      const fx = o.effects || {};
+      safeOpts.push({
+        label: String(o.label || ("选项 " + (i + 1))).slice(0, 30),
+        desc: String(o.desc || "").slice(0, 120),
+        effects: {
+          fuel: parseInt(fx.fuel) || 0,
+          food: parseInt(fx.food) || 0,
+          morale: parseInt(fx.morale) || 0,
+          data: parseInt(fx.data) || 0,
+          nextDayPowerPenalty: parseInt(fx.nextDayPowerPenalty) || 0,
+          nextDayFuelRisk: parseInt(fx.nextDayFuelRisk) || 0
+        }
+      });
+    }
+    return {
+      id: String(evt.id || ("evt_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8))),
+      name: String(evt.name || "未命名事件").slice(0, 30),
+      icon: String(evt.icon || "⚠️").slice(0, 8),
+      desc: String(evt.desc || "").slice(0, 300),
+      weight: Math.max(1, Math.min(100, parseInt(evt.weight) || 1)),
+      dayMin: Math.max(1, parseInt(evt.dayMin) || 1),
+      dayMax: Math.max(1, parseInt(evt.dayMax) || 1),
+      options: safeOpts
+    };
+  } catch (e) {
+    return null;
+  }
 }
 
 function getCustomEmergencyChance() {
