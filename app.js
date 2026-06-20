@@ -6938,6 +6938,107 @@ const BalanceSimulator = (function () {
     return chains;
   }
 
+  function simCreateInitialCrew() {
+    return crewTemplates.map((t) => ({
+      id: t.id,
+      name: t.name,
+      specialty: t.specialty,
+      fatigue: t.initialFatigue,
+      mood: t.initialMood,
+      station: null,
+      skills: { heat: 0, comm: 0, lab: 0, food: 0 },
+      tempStatuses: []
+    }));
+  }
+
+  function simAutoAssignCrew(simState) {
+    const crew = simState.crew;
+    const stations = ["heat", "comm", "lab", "food"];
+    let crewIdx = 0;
+
+    stations.forEach((st) => {
+      const matchingSpecialist = crew.find((m) => m.specialty === st && !m.station);
+      if (matchingSpecialist) {
+        matchingSpecialist.station = st;
+      }
+    });
+
+    crew.forEach((m) => {
+      if (!m.station && crewIdx < stations.length) {
+        const taken = new Set(crew.filter((x) => x.station).map((x) => x.station));
+        for (const st of stations) {
+          if (!taken.has(st)) { m.station = st; break; }
+        }
+        crewIdx++;
+      }
+      if (!m.station) m.station = "rest";
+    });
+  }
+
+  function simGetCrewEfficiency(member) {
+    if (member.station === "rest") return 0;
+    let efficiency = 1;
+    if (member.fatigue >= 90) efficiency *= 0.3;
+    else if (member.fatigue >= 80) efficiency *= 0.5;
+    else if (member.fatigue >= 70) efficiency *= 0.7;
+    else if (member.fatigue >= 60) efficiency *= 0.85;
+    if (member.mood <= 20) efficiency *= 0.7;
+    else if (member.mood <= 40) efficiency *= 0.85;
+    else if (member.mood >= 80) efficiency *= 1.05;
+    if (member.station) {
+      const skillLevel = Math.min(4, Math.floor((member.skills[member.station] || 0) / 5));
+      efficiency *= 1 + (skillLevel * 0.05);
+    }
+    return Math.max(0.2, efficiency);
+  }
+
+  function simCalculateCrewEffects(simState) {
+    const effects = {
+      fuelSave: 0,
+      moraleBoost: 0,
+      dataBoost: 0,
+      foodSave: 0
+    };
+
+    simState.crew.forEach((member) => {
+      if (member.station === "rest") return;
+      const isMatched = member.specialty === member.station;
+      const bonus = crewSpecialtyBonus[member.station] || {};
+      const efficiency = simGetCrewEfficiency(member);
+      const skillLevel = member.station
+        ? Math.min(4, Math.floor((member.skills[member.station] || 0) / 5))
+        : 0;
+      const skillMult = skillLevelConfig.bonusMult[skillLevel] || 1.0;
+      const mult = (isMatched ? 1 : 0.4) * efficiency * skillMult;
+
+      if (bonus.fuelSave) effects.fuelSave += Math.round(bonus.fuelSave * mult);
+      if (bonus.dataBoost) effects.dataBoost += Math.round(bonus.dataBoost * mult);
+      if (bonus.foodSave) effects.foodSave += Math.round(bonus.foodSave * mult);
+      if (bonus.moraleBoost) effects.moraleBoost += Math.round(bonus.moraleBoost * mult);
+    });
+
+    if (effects.dataBoost < 0) effects.dataBoost = 0;
+    effects.fuelSave = Math.max(0, effects.fuelSave);
+    effects.foodSave = Math.max(0, effects.foodSave);
+    effects.dataBoost = Math.max(0, effects.dataBoost);
+
+    return effects;
+  }
+
+  function simUpdateCrewAfterDay(simState) {
+    simState.crew.forEach((member) => {
+      if (member.station === "rest") {
+        member.fatigue = Math.max(0, member.fatigue - 28);
+        member.mood = Math.min(100, member.mood + 6);
+      } else {
+        member.fatigue = Math.min(100, member.fatigue + 18);
+        const matchBonus = member.specialty === member.station ? 2 : 0;
+        member.mood = Math.min(100, member.mood + matchBonus);
+        member.skills[member.station] = (member.skills[member.station] || 0) + 1;
+      }
+    });
+  }
+
   function simCreateState(mission) {
     return {
       started: true,
@@ -6952,6 +7053,7 @@ const BalanceSimulator = (function () {
       nextDayEffects: null,
       equipment: simCreateInitialEquipment(),
       samples: simCreateInitialSamples(),
+      crew: simCreateInitialCrew(),
       commChains: simCreateInitialCommChains(),
       activeCommChainId: mission.defaultCommChain || commChains[0].id,
       lastCommAdvancedDay: 0,
@@ -7040,20 +7142,22 @@ const BalanceSimulator = (function () {
     });
   }
 
-  function simProduceSamples(simState, labEfficiency) {
+  function simProduceSamples(simState, labEfficiency, crewDataBoost) {
     const labPower = simState.allocations.lab;
     sampleTypes.forEach((type) => {
       const s = simState.samples[type.id];
       if (labPower < type.labPowerThreshold) return;
       const baseChance = 0.25 + (labPower - type.labPowerThreshold) * 0.12;
       const effMult = 0.8 + labEfficiency * 0.4;
+      const crewBonus = crewDataBoost > 0 ? 1.15 : 1.0;
       const bonusMult = type.labPowerBonus !== undefined ? type.labPowerBonus : 1.0;
-      const chance = Math.min(0.95, baseChance * effMult * bonusMult);
+      const chance = Math.min(0.95, baseChance * effMult * crewBonus * bonusMult);
       const count = Math.random() < chance ? 1 : 0;
       if (count > 0) {
         const extra = Math.random() < (chance * 0.35) ? 1 : 0;
         const total = count + extra;
         s.count += total;
+        s.integrity = Math.min(100, s.integrity + 2);
         s.totalProduced += total;
       }
     });
@@ -7385,6 +7489,7 @@ const BalanceSimulator = (function () {
     const simState = simCreateState(mission);
     simState.weather = simPickWeather(mission);
     simSmartAllocation(simState, simState.weather);
+    simAutoAssignCrew(simState);
 
     let finished = false;
     let success = false;
@@ -7393,11 +7498,12 @@ const BalanceSimulator = (function () {
     while (!finished) {
       simState.simStats.weatherCounts[simState.weather.name] = (simState.simStats.weatherCounts[simState.weather.name] || 0) + 1;
 
+      const crewEffects = simCalculateCrewEffects(simState);
       const eqEffects = simCalculateEquipmentEffects(simState);
 
       const spent = simState.allocations.heat + simState.allocations.comm + simState.allocations.lab + simState.allocations.food;
       let fuelCost = spent + (simState.weather.name === "暴风雪" ? 4 : 2);
-      fuelCost = Math.max(1, fuelCost - 2);
+      fuelCost = Math.max(1, fuelCost - crewEffects.fuelSave);
       simState.fuel -= fuelCost;
       simState.simStats.totalFuelSpent += fuelCost;
 
@@ -7413,18 +7519,18 @@ const BalanceSimulator = (function () {
       if (simState.mission.commMoraleBonus && commOk) {
         simState.morale += 3;
       }
-      simState.morale += 2;
+      simState.morale += crewEffects.moraleBoost;
 
       let foodLoss = simState.mission.foodReserve
         ? Math.max(2, 6 - simState.allocations.food)
         : Math.max(3, 8 - simState.allocations.food);
-      foodLoss = Math.max(1, foodLoss - 2);
+      foodLoss = Math.max(1, foodLoss - crewEffects.foodSave);
       foodLoss += eqEffects.foodLossAdj;
       foodLoss = Math.max(1, foodLoss);
       simState.food -= foodLoss;
       simState.simStats.totalFoodSpent += foodLoss;
 
-      simProduceSamples(simState, eqEffects.labEfficiency);
+      simProduceSamples(simState, eqEffects.labEfficiency, crewEffects.dataBoost);
       simCheckSamplePreservation(simState);
 
       let dataGain = 0;
@@ -7434,10 +7540,12 @@ const BalanceSimulator = (function () {
       if (simState.mission.commBonus && commOk) {
         dataGain += Math.round(simState.mission.commBonus * eqEffects.commEfficiency);
       }
+      dataGain += crewEffects.dataBoost;
       simState.data += dataGain;
 
       simProcessCommChainDay(simState, eqEffects);
       simDegradeEquipment(simState);
+      simUpdateCrewAfterDay(simState);
 
       simNormalize(simState);
       simTrackFirstZero(simState);
@@ -7474,6 +7582,7 @@ const BalanceSimulator = (function () {
       simState.weather = simPickWeather(mission);
       simApplyNextDayEffects(simState);
       simSmartAllocation(simState, simState.weather);
+      simAutoAssignCrew(simState);
       simNormalize(simState);
     }
 
@@ -7648,7 +7757,8 @@ const BalanceSimulator = (function () {
       sortedBottlenecks,
       recommendations,
       extremeWarning,
-      weatherCounts
+      weatherCounts,
+      mission
     };
   }
 
