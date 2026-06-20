@@ -1498,7 +1498,9 @@ function deserializeCampaignState(saved) {
 }
 
 function serializeGameState() {
-  if (!state || !state.started) return null;
+  if (!state) return null;
+  const campaignInProgress = campaignState && campaignState.active;
+  if (!state.started && !campaignInProgress) return null;
   const serialized = deepCloneSafe(state);
   if (serialized.mission) {
     delete serialized.mission.successText;
@@ -1690,7 +1692,7 @@ function migrateCampaignSave(save) {
 }
 
 function writeCampaignSave(slotName) {
-  if (!campaignState || !campaignState.active || !state || !state.started) {
+  if (!campaignState || !campaignState.active || !state) {
     return { success: false, error: "没有可保存的战役进度" };
   }
   const newSave = createCampaignSave(slotName);
@@ -1801,7 +1803,8 @@ function applyRestoredCampaignUI(save) {
         currentSettleData.success,
         currentSettleData.allObjectivesMet,
         currentSettleData.objResults,
-        currentSettleData.outcome
+        currentSettleData.outcome,
+        { persist: false }
       );
       overlayRestored = true;
     }
@@ -1812,7 +1815,8 @@ function applyRestoredCampaignUI(save) {
     showCampaignEnding(
       currentEndingData.lastChapterSuccess,
       currentEndingData.allObjectivesMet,
-      currentEndingData.lastOutcome
+      currentEndingData.lastOutcome,
+      { persist: false }
     );
     overlayRestored = true;
   }
@@ -3686,8 +3690,6 @@ function finishCampaignChapter(success) {
     campaignChapterIndex: campaignState.chapterIndex
   });
 
-  writeCampaignSave(`${chapter.name} 结算`);
-
   if (campaignState.chapterIndex >= campaignChapters.length - 1) {
     showCampaignEnding(success, allObjectivesMet, outcome);
   } else {
@@ -3695,7 +3697,7 @@ function finishCampaignChapter(success) {
   }
 }
 
-function showChapterSettlement(chapter, success, allObjectivesMet, objResults, outcome) {
+function showChapterSettlement(chapter, success, allObjectivesMet, objResults, outcome, options = {}) {
   currentSettleData = {
     chapterId: chapter.id,
     chapterIndex: campaignState.chapterIndex,
@@ -3779,9 +3781,12 @@ function showChapterSettlement(chapter, success, allObjectivesMet, objResults, o
   };
 
   chapterSettleOverlay.classList.remove("hidden");
+  if (options.persist !== false) {
+    writeCampaignSave(`${chapter.name} 结算`);
+  }
 }
 
-function showCampaignEnding(lastChapterSuccess, allObjectivesMet, lastOutcome) {
+function showCampaignEnding(lastChapterSuccess, allObjectivesMet, lastOutcome, options = {}) {
   stopAutosave();
 
   currentEndingData = {
@@ -3893,6 +3898,9 @@ function showCampaignEnding(lastChapterSuccess, allObjectivesMet, lastOutcome) {
   });
 
   campaignEndingOverlay.classList.remove("hidden");
+  if (options.persist !== false) {
+    writeCampaignSave("战役结局");
+  }
 }
 
 function finish(success) {
