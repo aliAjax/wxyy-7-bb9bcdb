@@ -1,0 +1,11 @@
+{
+  "name": "wxyy-level-editor-tests",
+  "version": "1.0.0",
+  "description": "关卡编辑器配置校验与保存流程测试",
+  "scripts": {
+    "test": "node test/level-editor.test.js"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
